@@ -78,7 +78,34 @@ public class DialogHelper {
             return null;
         }
     }
+    public static Stage showTranscribingDialog() {
+        try {
+            FXMLLoader loader = new FXMLLoader(MainApplication.class.getResource("TranscribingView.fxml"));
+            Parent root = loader.load();
 
+            Stage stage = new Stage();
+            stage.initModality(Modality.APPLICATION_MODAL); // Modal to block other interaction
+            stage.initStyle(StageStyle.UNDECORATED); // No title bar, makes it look cleaner for a loading screen
+            stage.setTitle("Transcribing...");
+            stage.setScene(new Scene(root));
+
+            stage.setAlwaysOnTop(true);
+            stage.show(); // Show non-blocking
+            stage.toFront();
+            stage.requestFocus();
+
+            return stage;
+        } catch (IOException e) {
+            e.printStackTrace();
+            createTopMostAlert(
+                    Alert.AlertType.ERROR,
+                    "UI Error",
+                    "Could not load the Transcribing window.",
+                    "Details: " + e.getMessage()
+            );
+            return null;
+        }
+    }
     public static Optional<ButtonType> createTopMostAlert(Alert.AlertType type, String title, String header, String content) {
         Alert alert = new Alert(type);
         alert.setTitle(title);

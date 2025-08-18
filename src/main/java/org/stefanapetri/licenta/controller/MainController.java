@@ -139,19 +139,49 @@ public class MainController implements Initializable, SystemMonitorListener {
     }
 
     private void transcribeAndSave(TrackedApplication app, String audioFilePath) {
+        System.out.println("Starting transcription for " + audioFilePath);
+
+        // --- NEW: Show the transcribing dialog ---
+        Stage transcribingDialog = DialogHelper.showTranscribingDialog();
+
         pythonBridge.transcribeAudio(audioFilePath).thenAccept(transcription -> {
+            // --- NEW: Close the transcribing dialog when done ---
+            Platform.runLater(() -> {
+                if (transcribingDialog != null) {
+                    transcribingDialog.close();
+                }
+            });
+
+            System.out.println("Transcription received: " + transcription);
             if (transcription != null && !transcription.startsWith("Error:")) {
                 dbManager.saveMemo(app.getAppId(), transcription, audioFilePath);
                 Platform.runLater(() -> {
                     if (app.equals(appTableView.getSelectionModel().getSelectedItem())) {
                         loadMemoForApp(app);
                     }
+                    DialogHelper.createTopMostAlert(
+                            Alert.AlertType.INFORMATION, "Transcription Complete",
+                            "Memo recorded successfully!", "Transcription: " + transcription
+                    );
                 });
             } else {
-                Platform.runLater(() -> DialogHelper.createTopMostAlert(Alert.AlertType.ERROR, "Transcription Failed", "The transcription process failed.", transcription));
+                Platform.runLater(() -> DialogHelper.createTopMostAlert(
+                        Alert.AlertType.ERROR, "Transcription Failed",
+                        "The transcription process failed.", transcription
+                ));
             }
         }).exceptionally(ex -> {
             ex.printStackTrace();
+            // --- NEW: Ensure dialog closes even on exception ---
+            Platform.runLater(() -> {
+                if (transcribingDialog != null) {
+                    transcribingDialog.close();
+                }
+                DialogHelper.createTopMostAlert(
+                        Alert.AlertType.ERROR, "Transcription Error",
+                        "An unexpected error occurred during transcription.", ex.getMessage()
+                );
+            });
             return null;
         });
     }
