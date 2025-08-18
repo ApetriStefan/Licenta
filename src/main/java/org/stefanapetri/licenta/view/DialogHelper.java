@@ -11,12 +11,17 @@ import javafx.stage.StageStyle;
 import org.stefanapetri.licenta.MainApplication;
 import org.stefanapetri.licenta.controller.RecordingController;
 import org.stefanapetri.licenta.controller.ReminderViewController;
+import org.stefanapetri.licenta.controller.TranscribingController;
+import org.stefanapetri.licenta.controller.TranscriptionResultController;
 import org.stefanapetri.licenta.model.Memo;
 import org.stefanapetri.licenta.model.TrackedApplication;
 import org.stefanapetri.licenta.service.AudioRecorder;
 
+import javax.sound.sampled.LineUnavailableException; // NEW IMPORT
 import java.io.IOException;
 import java.util.Optional;
+
+
 
 public class DialogHelper {
 
@@ -40,8 +45,6 @@ public class DialogHelper {
 
         } catch (IOException e) {
             e.printStackTrace();
-            // --- THIS IS THE CORRECTED LINE ---
-            // We simply call the helper method. We don't need to call .show() on its result.
             createTopMostAlert(
                     Alert.AlertType.ERROR,
                     "UI Error",
@@ -51,15 +54,27 @@ public class DialogHelper {
         }
     }
 
-    public static Stage showRecordingDialog(TrackedApplication app, AudioRecorder recorder, String audioFilePath) {
+    // --- MODIFIED: showRecordingDialog now correctly calls startRecording ---
+    public static StageAndController<RecordingController> showRecordingDialog(TrackedApplication app, AudioRecorder recorder, String audioFilePath) {
         try {
             FXMLLoader loader = new FXMLLoader(MainApplication.class.getResource("RecordingView.fxml"));
             Parent root = loader.load();
 
             RecordingController controller = loader.getController();
             controller.setAppName(app.getAppName());
-            // --- NEW: Call the start method on the controller to begin visualization ---
-            controller.start(recorder, audioFilePath);
+
+            // --- NEW: Start recording HERE and pass the visualizer consumer ---
+            // Catch LineUnavailableException here, as it directly relates to starting the mic.
+            try {
+                recorder.startRecording(audioFilePath, controller.getAudioDataConsumer());
+            } catch (LineUnavailableException e) {
+                createTopMostAlert(
+                        Alert.AlertType.ERROR, "Recording Error",
+                        "Microphone not available or not supported.", e.getMessage()
+                );
+                return null; // Cannot proceed without mic access
+            }
+            // --- END NEW ---
 
             Stage stage = new Stage();
             stage.initModality(Modality.APPLICATION_MODAL);
@@ -72,25 +87,26 @@ public class DialogHelper {
             stage.toFront();
             stage.requestFocus();
 
-            return stage;
+            return new StageAndController<>(stage, controller);
         } catch (IOException e) {
             e.printStackTrace();
             return null;
         }
     }
+
     public static Stage showTranscribingDialog() {
         try {
             FXMLLoader loader = new FXMLLoader(MainApplication.class.getResource("TranscribingView.fxml"));
             Parent root = loader.load();
 
             Stage stage = new Stage();
-            stage.initModality(Modality.APPLICATION_MODAL); // Modal to block other interaction
-            stage.initStyle(StageStyle.UNDECORATED); // No title bar, makes it look cleaner for a loading screen
+            stage.initModality(Modality.APPLICATION_MODAL);
+            stage.initStyle(StageStyle.UNDECORATED);
             stage.setTitle("Transcribing...");
             stage.setScene(new Scene(root));
 
             stage.setAlwaysOnTop(true);
-            stage.show(); // Show non-blocking
+            stage.show();
             stage.toFront();
             stage.requestFocus();
 
@@ -106,6 +122,34 @@ public class DialogHelper {
             return null;
         }
     }
+
+    public static void showTranscriptionResultDialog(String transcription, String audioFilePath) {
+        try {
+            FXMLLoader loader = new FXMLLoader(MainApplication.class.getResource("TranscriptionResultView.fxml"));
+            Parent root = loader.load();
+
+            TranscriptionResultController controller = loader.getController();
+            controller.setContent(transcription, audioFilePath);
+
+            Stage stage = new Stage();
+            stage.initModality(Modality.APPLICATION_MODAL);
+            stage.setTitle("Transcription Result");
+            stage.setScene(new Scene(root));
+
+            stage.setAlwaysOnTop(true);
+            stage.showAndWait();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+            createTopMostAlert(
+                    Alert.AlertType.ERROR,
+                    "UI Error",
+                    "Could not load the Transcription Result window.",
+                    "Details: " + e.getMessage()
+            );
+        }
+    }
+
     public static Optional<ButtonType> createTopMostAlert(Alert.AlertType type, String title, String header, String content) {
         Alert alert = new Alert(type);
         alert.setTitle(title);
@@ -115,7 +159,6 @@ public class DialogHelper {
         Stage stage = (Stage) alert.getDialogPane().getScene().getWindow();
         stage.setAlwaysOnTop(true);
 
-        // The alert is shown here, and we wait for the user's response.
         return alert.showAndWait();
     }
 }

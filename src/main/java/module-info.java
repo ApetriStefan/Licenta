@@ -3,7 +3,7 @@ module org.stefanapetri.licenta {
     requires javafx.fxml;
     requires javafx.swing;
     requires javafx.graphics;
-    requires javafx.media; // <--- NEW: Required for MediaPlayer and Media classes
+    requires javafx.media; // <--- NEW: Required for MediaPlayer
 
     requires com.sun.jna;
     requires com.sun.jna.platform;

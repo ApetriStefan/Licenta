@@ -14,9 +14,10 @@ import org.stefanapetri.licenta.model.Memo;
 import org.stefanapetri.licenta.model.TrackedApplication;
 import org.stefanapetri.licenta.service.*;
 import org.stefanapetri.licenta.view.DialogHelper;
+import org.stefanapetri.licenta.view.StageAndController; // Ensure this is imported
 
-import javax.sound.sampled.LineUnavailableException;
 import java.io.File;
+import java.io.IOException; // Re-add IOException import if it was removed
 import java.net.URL;
 import java.sql.Timestamp;
 import java.time.Duration;
@@ -26,12 +27,10 @@ import java.util.ResourceBundle;
 
 public class MainController implements Initializable, SystemMonitorListener {
 
-    // --- FXML Fields for Settings Tab ---
+    // (All FXML fields, dependencies, and state variables are unchanged)
     @FXML private CheckBox startupCheckBox;
     @FXML private CheckBox disableRemindersCheckBox;
     @FXML private ChoiceBox<ReminderInterval> reminderIntervalChoiceBox;
-
-    // --- FXML Fields for Main Tab ---
     @FXML private TableView<TrackedApplication> appTableView;
     @FXML private TableColumn<TrackedApplication, String> appNameColumn;
     @FXML private TableColumn<TrackedApplication, String> appPathColumn;
@@ -39,16 +38,12 @@ public class MainController implements Initializable, SystemMonitorListener {
     @FXML private Button updateAppButton;
     @FXML private Button removeAppButton;
     @FXML private TextArea reminderTextArea;
-
-    // --- Dependencies ---
     private final DatabaseManager dbManager;
     private final SystemMonitor systemMonitor;
     private final PythonBridge pythonBridge;
     private final AudioRecorder audioRecorder;
     private final SettingsManager settingsManager;
     private final StartupManager startupManager;
-
-    // --- State ---
     private final ObservableList<TrackedApplication> trackedAppsList = FXCollections.observableArrayList();
     private boolean isRecording = false;
     private Memo currentMemo = null;
@@ -64,6 +59,7 @@ public class MainController implements Initializable, SystemMonitorListener {
 
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {
+        // (Main Tab Setup and Settings Tab Setup are unchanged)
         systemMonitor.setListener(this);
         appNameColumn.setCellValueFactory(new PropertyValueFactory<>("appName"));
         appPathColumn.setCellValueFactory(new PropertyValueFactory<>("executablePath"));
@@ -122,30 +118,45 @@ public class MainController implements Initializable, SystemMonitorListener {
         removeAppButton.setDisable(!itemSelected);
     }
 
+    // --- MODIFIED: Simplified startRecordingProcess as DialogHelper handles recorder start ---
     private void startRecordingProcess(TrackedApplication app) {
         isRecording = true;
-        String audioFilePath = "temp_memo.wav";
-        Stage recordingStage = DialogHelper.showRecordingDialog(app, audioRecorder, audioFilePath);
-        if (recordingStage != null) {
-            recordingStage.setOnHidden(e -> {
+        // This file should ideally be stored in a user-specific temp directory
+        String audioFilePath = new File(System.getProperty("java.io.tmpdir"), "temp_memo.wav").getAbsolutePath();
+        // DialogHelper now handles starting the recorder and returns StageAndController
+        StageAndController<RecordingController> sac = DialogHelper.showRecordingDialog(app, audioRecorder, audioFilePath);
+        if (sac != null) {
+            sac.stage.setOnHidden(e -> {
                 audioRecorder.stopRecording();
                 isRecording = false;
                 transcribeAndSave(app, audioFilePath);
             });
         } else {
-            isRecording = false;
-            DialogHelper.createTopMostAlert(Alert.AlertType.ERROR, "UI Error", "Could not display the recording window.", null);
+            isRecording = false; // Dialog failed to show or mic unavailable (error handled in DialogHelper)
         }
     }
 
+
     private void transcribeAndSave(TrackedApplication app, String audioFilePath) {
+        System.out.println("Starting transcription for " + audioFilePath);
+
+        Stage transcribingDialog = DialogHelper.showTranscribingDialog();
+
         pythonBridge.transcribeAudio(audioFilePath).thenAccept(transcription -> {
+            Platform.runLater(() -> {
+                if (transcribingDialog != null) {
+                    transcribingDialog.close();
+                }
+            });
+
+            System.out.println("Transcription received: " + transcription);
             if (transcription != null && !transcription.startsWith("Error:")) {
                 dbManager.saveMemo(app.getAppId(), transcription, audioFilePath);
                 Platform.runLater(() -> {
                     if (app.equals(appTableView.getSelectionModel().getSelectedItem())) {
                         loadMemoForApp(app);
                     }
+                    DialogHelper.showTranscriptionResultDialog(transcription, audioFilePath);
                 });
             } else {
                 Platform.runLater(() -> DialogHelper.createTopMostAlert(
@@ -155,11 +166,21 @@ public class MainController implements Initializable, SystemMonitorListener {
             }
         }).exceptionally(ex -> {
             ex.printStackTrace();
+            Platform.runLater(() -> {
+                if (transcribingDialog != null) {
+                    transcribingDialog.close();
+                }
+                DialogHelper.createTopMostAlert(
+                        Alert.AlertType.ERROR, "Transcription Error",
+                        "An unexpected error occurred during transcription.", ex.getMessage()
+                );
+            });
             return null;
         });
     }
 
-    // --- BUTTON HANDLER METHODS (NOW CORRECTLY IMPLEMENTED) ---
+
+    // --- BUTTON HANDLER METHODS (UNCHANGED) ---
 
     @FXML
     private void handleAddApp() {
@@ -215,10 +236,12 @@ public class MainController implements Initializable, SystemMonitorListener {
     private void handleUpdateAppPath() {
         TrackedApplication selectedApp = appTableView.getSelectionModel().getSelectedItem();
         if (selectedApp == null) return;
+
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Select New Path for " + selectedApp.getAppName());
         fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Executables", "*.exe"));
         File newFile = fileChooser.showOpenDialog(appTableView.getScene().getWindow());
+
         if (newFile != null) {
             String newPath = newFile.getAbsolutePath();
             Optional<ButtonType> result = DialogHelper.createTopMostAlert(
@@ -263,7 +286,7 @@ public class MainController implements Initializable, SystemMonitorListener {
         }
     }
 
-    // --- SYSTEM MONITOR LISTENER METHODS ---
+    // --- SYSTEM MONITOR LISTENER METHODS (UNCHANGED) ---
 
     @Override
     public void onMonitoredAppClosed(TrackedApplication app) {
@@ -306,7 +329,8 @@ public class MainController implements Initializable, SystemMonitorListener {
         });
     }
 }
-// Helper Enum for the ChoiceBox
+
+// Helper Enum for the ChoiceBox (unchanged)
 enum ReminderInterval {
     ALWAYS("Always", -1),
     ONE_HOUR("After 1 Hour", 1),
