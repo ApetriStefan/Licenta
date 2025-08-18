@@ -1,6 +1,7 @@
 package org.stefanapetri.licenta;
 
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
@@ -9,45 +10,119 @@ import org.stefanapetri.licenta.model.DatabaseManager;
 import org.stefanapetri.licenta.service.PythonBridge;
 import org.stefanapetri.licenta.service.SystemMonitor;
 
+import java.awt.*; // AWT classes for SystemTray
 import java.io.IOException;
+import java.net.URL; // For loading image resource
+import javafx.scene.image.Image; // NEW IMPORT: For JavaFX Image
 
 public class MainApplication extends Application {
 
     private SystemMonitor systemMonitor;
+    private Stage primaryStage;
+    private TrayIcon trayIcon;
 
     @Override
     public void start(Stage stage) throws IOException {
-        // 1. Initialize core services (the "backend")
+        primaryStage = stage;
+
+        Platform.setImplicitExit(false);
+
         DatabaseManager dbManager = new DatabaseManager();
         systemMonitor = new SystemMonitor();
         PythonBridge pythonBridge = new PythonBridge();
 
-        // 2. Initialize the Controller and inject the services (Dependency Injection)
         MainController mainController = new MainController(dbManager, systemMonitor, pythonBridge);
 
-        // 3. Load the FXML view
         FXMLLoader fxmlLoader = new FXMLLoader(MainApplication.class.getResource("MainWindow.fxml"));
-
-        // 4. Set the controller factory so the FXML loader uses our instance
-        // This is how we pass our services to the controller.
         fxmlLoader.setControllerFactory(param -> mainController);
 
-        // 5. Create the scene and show the stage
         Scene scene = new Scene(fxmlLoader.load(), 974, 591);
-        stage.setTitle("Application Activity Tracker");
-        stage.setScene(scene);
-        stage.show();
+        primaryStage.setTitle("Application Activity Tracker");
+        primaryStage.setScene(scene);
 
-        // 6. Start the background monitor AFTER the UI is visible
+        // --- NEW CODE: Set the application icon ---
+        URL iconUrl = MainApplication.class.getResource("app_icon.png"); // Path to your icon file
+        if (iconUrl != null) {
+            Image applicationIcon = new Image(iconUrl.toExternalForm());
+            primaryStage.getIcons().add(applicationIcon);
+        } else {
+            System.err.println("Warning: Application icon 'app_icon.png' not found in resources. Cannot set window icon.");
+        }
+        // --- END NEW CODE ---
+
+        primaryStage.setOnCloseRequest(event -> {
+            event.consume();
+            hideStage();
+        });
+
+        createTrayIcon();
+
+        primaryStage.show();
+
         systemMonitor.start();
+    }
+
+    private void createTrayIcon() {
+        if (!SystemTray.isSupported()) {
+            System.out.println("SystemTray is not supported on this platform.");
+            return;
+        }
+
+        SystemTray tray = SystemTray.getSystemTray();
+
+        URL imageUrl = MainApplication.class.getResource("app_icon.png");
+        if (imageUrl == null) {
+            System.err.println("Error: Tray icon file 'app_icon.png' not found in resources.");
+            return;
+        }
+        java.awt.Image image = new javax.swing.ImageIcon(imageUrl).getImage();
+
+        PopupMenu popup = new PopupMenu();
+        MenuItem showItem = new MenuItem("Show Window");
+        showItem.addActionListener(e -> Platform.runLater(this::showStage));
+        MenuItem exitItem = new MenuItem("Exit");
+        exitItem.addActionListener(e -> {
+            if (systemMonitor != null) {
+                systemMonitor.stop();
+            }
+            if (trayIcon != null) {
+                tray.remove(trayIcon);
+            }
+            Platform.exit();
+            System.exit(0);
+        });
+
+        popup.add(showItem);
+        popup.addSeparator();
+        popup.add(exitItem);
+
+        trayIcon = new TrayIcon(image, "Application Activity Tracker", popup);
+        trayIcon.setImageAutoSize(true);
+        trayIcon.addActionListener(e -> Platform.runLater(this::showStage));
+
+        try {
+            tray.add(trayIcon);
+        } catch (AWTException e) {
+            System.err.println("TrayIcon could not be added: " + e.getMessage());
+        }
+    }
+
+    private void showStage() {
+        if (primaryStage != null) {
+            primaryStage.show();
+            primaryStage.toFront();
+            primaryStage.requestFocus();
+        }
+    }
+
+    private void hideStage() {
+        if (primaryStage != null) {
+            primaryStage.hide();
+        }
     }
 
     @Override
     public void stop() throws Exception {
-        // Gracefully stop the background thread when the application closes
-        if (systemMonitor != null) {
-            systemMonitor.stop();
-        }
         super.stop();
     }
 
