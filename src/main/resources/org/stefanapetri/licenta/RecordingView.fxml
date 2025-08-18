@@ -1,20 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <?import javafx.geometry.Insets?>
+<?import javafx.scene.canvas.Canvas?>
 <?import javafx.scene.control.Button?>
 <?import javafx.scene.control.Label?>
-<?import javafx.scene.control.ProgressIndicator?>
 <?import javafx.scene.layout.VBox?>
 <?import javafx.scene.text.Font?>
 
-<VBox alignment="CENTER" maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="200.0" prefWidth="400.0" spacing="15.0" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.stefanapetri.licenta.controller.RecordingController">
+<VBox alignment="CENTER" maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="250.0" prefWidth="450.0" spacing="15.0" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.stefanapetri.licenta.controller.RecordingController">
     <children>
         <Label fx:id="titleLabel" text="Recording Memo for [AppName]">
             <font>
                 <Font name="System Bold" size="14.0" />
             </font>
         </Label>
-        <ProgressIndicator prefHeight="60.0" prefWidth="60.0" />
+        <!-- NEW: Replaced ProgressIndicator with a Canvas. VBox.vgrow makes it fill available space. -->
+        <Canvas fx:id="waveformCanvas" height="120.0" width="420.0" VBox.vgrow="ALWAYS" />
         <Label text="Recording in progress... Click Stop to finish." />
         <Button fx:id="stopButton" mnemonicParsing="false" onAction="#handleStop" prefHeight="30.0" prefWidth="80.0" style="-fx-background-color: #DC3545;" text="Stop" textFill="WHITE" />
     </children>

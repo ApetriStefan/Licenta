@@ -64,7 +64,6 @@ public class MainController implements Initializable, SystemMonitorListener {
 
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {
-        // --- Main Tab Setup ---
         systemMonitor.setListener(this);
         appNameColumn.setCellValueFactory(new PropertyValueFactory<>("appName"));
         appPathColumn.setCellValueFactory(new PropertyValueFactory<>("executablePath"));
@@ -86,12 +85,8 @@ public class MainController implements Initializable, SystemMonitorListener {
         loadApplicationsFromDB();
         updateButtonStates(false);
         reminderTextArea.setEditable(false);
-
-        // --- Settings Tab Setup ---
         setupSettingsTab();
     }
-
-    // --- THIS SECTION CONTAINS THE MISSING HELPER METHODS ---
 
     private void setupSettingsTab() {
         reminderIntervalChoiceBox.setItems(FXCollections.observableArrayList(ReminderInterval.values()));
@@ -99,24 +94,13 @@ public class MainController implements Initializable, SystemMonitorListener {
         disableRemindersCheckBox.setSelected(settingsManager.areRemindersDisabled());
         int savedIntervalHours = settingsManager.getReminderIntervalHours();
         ReminderInterval.fromHours(savedIntervalHours).ifPresent(reminderIntervalChoiceBox::setValue);
-
         startupCheckBox.selectedProperty().addListener((obs, oldVal, newVal) -> {
             settingsManager.setLaunchOnStartup(newVal);
-            if (newVal) {
-                startupManager.enableLaunchOnStartup();
-            } else {
-                startupManager.disableLaunchOnStartup();
-            }
+            if (newVal) startupManager.enableLaunchOnStartup(); else startupManager.disableLaunchOnStartup();
         });
-
-        disableRemindersCheckBox.selectedProperty().addListener((obs, oldVal, newVal) -> {
-            settingsManager.setDisableReminders(newVal);
-        });
-
+        disableRemindersCheckBox.selectedProperty().addListener((obs, oldVal, newVal) -> settingsManager.setDisableReminders(newVal));
         reminderIntervalChoiceBox.valueProperty().addListener((obs, oldVal, newVal) -> {
-            if (newVal != null) {
-                settingsManager.setReminderIntervalHours(newVal.getHours());
-            }
+            if (newVal != null) settingsManager.setReminderIntervalHours(newVal.getHours());
         });
     }
 
@@ -129,8 +113,7 @@ public class MainController implements Initializable, SystemMonitorListener {
     private void loadMemoForApp(TrackedApplication app) {
         Optional<Memo> latestMemo = dbManager.getLatestMemoForApp(app.getAppId());
         this.currentMemo = latestMemo.orElse(null);
-        reminderTextArea.setText(latestMemo.map(Memo::transcriptionText)
-                .orElse("No reminder found for this application."));
+        reminderTextArea.setText(latestMemo.map(Memo::transcriptionText).orElse("No reminder found for this application."));
     }
 
     private void updateButtonStates(boolean itemSelected) {
@@ -142,31 +125,21 @@ public class MainController implements Initializable, SystemMonitorListener {
     private void startRecordingProcess(TrackedApplication app) {
         isRecording = true;
         String audioFilePath = "temp_memo.wav";
-        try {
-            audioRecorder.startRecording(audioFilePath);
-            Stage recordingStage = DialogHelper.showRecordingDialog(app);
-            if (recordingStage != null) {
-                recordingStage.setOnHidden(e -> {
-                    audioRecorder.stopRecording();
-                    isRecording = false;
-                    transcribeAndSave(app, audioFilePath);
-                });
-            } else {
+        Stage recordingStage = DialogHelper.showRecordingDialog(app, audioRecorder, audioFilePath);
+        if (recordingStage != null) {
+            recordingStage.setOnHidden(e -> {
+                audioRecorder.stopRecording();
                 isRecording = false;
-            }
-        } catch (LineUnavailableException e) {
+                transcribeAndSave(app, audioFilePath);
+            });
+        } else {
             isRecording = false;
-            DialogHelper.createTopMostAlert(
-                    Alert.AlertType.ERROR, "Recording Error",
-                    "Microphone not available or not supported.", e.getMessage()
-            );
+            DialogHelper.createTopMostAlert(Alert.AlertType.ERROR, "UI Error", "Could not display the recording window.", null);
         }
     }
 
     private void transcribeAndSave(TrackedApplication app, String audioFilePath) {
-        System.out.println("Starting transcription for " + audioFilePath);
         pythonBridge.transcribeAudio(audioFilePath).thenAccept(transcription -> {
-            System.out.println("Transcription received: " + transcription);
             if (transcription != null && !transcription.startsWith("Error:")) {
                 dbManager.saveMemo(app.getAppId(), transcription, audioFilePath);
                 Platform.runLater(() -> {
@@ -175,10 +148,7 @@ public class MainController implements Initializable, SystemMonitorListener {
                     }
                 });
             } else {
-                Platform.runLater(() -> DialogHelper.createTopMostAlert(
-                        Alert.AlertType.ERROR, "Transcription Failed",
-                        "The transcription process failed.", transcription
-                ));
+                Platform.runLater(() -> DialogHelper.createTopMostAlert(Alert.AlertType.ERROR, "Transcription Failed", "The transcription process failed.", transcription));
             }
         }).exceptionally(ex -> {
             ex.printStackTrace();
@@ -186,7 +156,7 @@ public class MainController implements Initializable, SystemMonitorListener {
         });
     }
 
-    // --- FXML HANDLER METHODS ---
+    // --- BUTTON HANDLER METHODS (NOW CORRECTLY IMPLEMENTED) ---
 
     @FXML
     private void handleAddApp() {
@@ -242,12 +212,10 @@ public class MainController implements Initializable, SystemMonitorListener {
     private void handleUpdateAppPath() {
         TrackedApplication selectedApp = appTableView.getSelectionModel().getSelectedItem();
         if (selectedApp == null) return;
-
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Select New Path for " + selectedApp.getAppName());
         fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Executables", "*.exe"));
         File newFile = fileChooser.showOpenDialog(appTableView.getScene().getWindow());
-
         if (newFile != null) {
             String newPath = newFile.getAbsolutePath();
             Optional<ButtonType> result = DialogHelper.createTopMostAlert(
@@ -312,27 +280,15 @@ public class MainController implements Initializable, SystemMonitorListener {
 
     @Override
     public void onMonitoredAppOpened(TrackedApplication app) {
-        if (settingsManager.areRemindersDisabled()) {
-            return;
-        }
+        if (settingsManager.areRemindersDisabled()) return;
         Platform.runLater(() -> {
             Optional<Memo> memoOpt = dbManager.getLatestMemoForApp(app.getAppId());
             Optional<Timestamp> lastClosedOpt = dbManager.getLastClosedTimestamp(app.getAppId());
-
             memoOpt.ifPresent(memo -> {
                 int intervalHours = settingsManager.getReminderIntervalHours();
-                boolean shouldShowPopup = false;
-                if (intervalHours == -1) {
-                    shouldShowPopup = true;
-                } else if (lastClosedOpt.isEmpty()) {
-                    shouldShowPopup = true;
-                } else {
-                    Instant lastClosedInstant = lastClosedOpt.get().toInstant();
-                    long hoursSinceClosed = Duration.between(lastClosedInstant, Instant.now()).toHours();
-                    if (hoursSinceClosed >= intervalHours) {
-                        shouldShowPopup = true;
-                    }
-                }
+                boolean shouldShowPopup = (intervalHours == -1) || lastClosedOpt.map(ts ->
+                        Duration.between(ts.toInstant(), Instant.now()).toHours() >= intervalHours
+                ).orElse(true);
                 if (shouldShowPopup) {
                     Optional<ButtonType> response = DialogHelper.createTopMostAlert(
                             Alert.AlertType.CONFIRMATION, "View Reminder",
@@ -347,7 +303,6 @@ public class MainController implements Initializable, SystemMonitorListener {
         });
     }
 }
-
 // Helper Enum for the ChoiceBox
 enum ReminderInterval {
     ALWAYS("Always", -1),

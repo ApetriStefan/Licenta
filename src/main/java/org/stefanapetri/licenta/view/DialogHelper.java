@@ -13,6 +13,7 @@ import org.stefanapetri.licenta.controller.RecordingController;
 import org.stefanapetri.licenta.controller.ReminderViewController;
 import org.stefanapetri.licenta.model.Memo;
 import org.stefanapetri.licenta.model.TrackedApplication;
+import org.stefanapetri.licenta.service.AudioRecorder;
 
 import java.io.IOException;
 import java.util.Optional;
@@ -50,13 +51,15 @@ public class DialogHelper {
         }
     }
 
-    public static Stage showRecordingDialog(TrackedApplication app) {
+    public static Stage showRecordingDialog(TrackedApplication app, AudioRecorder recorder, String audioFilePath) {
         try {
             FXMLLoader loader = new FXMLLoader(MainApplication.class.getResource("RecordingView.fxml"));
             Parent root = loader.load();
 
             RecordingController controller = loader.getController();
             controller.setAppName(app.getAppName());
+            // --- NEW: Call the start method on the controller to begin visualization ---
+            controller.start(recorder, audioFilePath);
 
             Stage stage = new Stage();
             stage.initModality(Modality.APPLICATION_MODAL);

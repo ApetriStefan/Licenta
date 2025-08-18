@@ -1,27 +1,28 @@
-import whisper
 import sys
 import os
-import torch
+from faster_whisper import WhisperModel
 
-# --- NEW: The modern and correct way to ensure UTF-8 output on all streams ---
-# This tells Python to use UTF-8 for everything it prints.
+# Ensure UTF-8 output on all streams
 sys.stdout.reconfigure(encoding='utf-8')
 sys.stderr.reconfigure(encoding='utf-8')
 
 def transcribe_audio(file_path):
-    # Using 'cpu' explicitly can sometimes be more stable if CUDA setup is problematic.
-    # Change back to 'cuda' if you are sure your GPU is configured correctly.
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    compute_type = "int8"
+    device = "cpu"
 
-    # It's more efficient to load the model only once.
-    # We'll keep it here for simplicity, but for a production app,
-    # you'd load it once at the start.
-    model = whisper.load_model("small").to(device)
+    model = WhisperModel("small", device=device, compute_type=compute_type)
+    segments, info = model.transcribe(file_path, beam_size=5)
 
-    result = model.transcribe(file_path)
+    # --- THIS IS THE KEY CHANGE ---
+    # Print diagnostic information to stderr, so it doesn't pollute the final output.
+    # The warnings from huggingface_hub also go to stderr by default.
+    print(f"Detected language '{info.language}' with probability {info.language_probability}", file=sys.stderr)
 
-    # Ensure the output is clean by stripping leading/trailing whitespace
-    print(result["text"].strip())
+    full_text = "".join(segment.text for segment in segments)
+
+    # Print the final, clean transcription to stdout.
+    print(full_text.strip())
+
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
@@ -30,7 +31,6 @@ if __name__ == "__main__":
             try:
                 transcribe_audio(audio_file_path)
             except Exception as e:
-                # Explicitly convert the exception to a string to be safe
                 print(f"Error during transcription: {str(e)}", file=sys.stderr)
         else:
             print(f"Error: File not found at {audio_file_path}", file=sys.stderr)
