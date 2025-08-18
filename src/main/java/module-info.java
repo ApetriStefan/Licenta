@@ -9,6 +9,7 @@ module org.stefanapetri.licenta {
     requires com.sun.jna;
     requires com.sun.jna.platform;
     requires java.sql;
+    requires java.prefs;
 
     // === Opening Packages for Reflection ===
     opens org.stefanapetri.licenta to javafx.fxml;

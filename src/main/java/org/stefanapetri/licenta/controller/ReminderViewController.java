@@ -12,6 +12,7 @@ import java.time.format.FormatStyle;
 
 public class ReminderViewController {
 
+    // These must match the fx:id attributes in the FXML
     @FXML private Text dateText;
     @FXML private TextArea reminderTextArea;
     @FXML private Button okButton;
@@ -24,7 +25,6 @@ public class ReminderViewController {
 
     @FXML
     private void handleOk() {
-        // Get the stage the button is on and close it
         Stage stage = (Stage) okButton.getScene().getWindow();
         stage.close();
     }

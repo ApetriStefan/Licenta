@@ -70,18 +70,21 @@
             <content>
                 <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0">
                     <children>
-                        <VBox layoutX="10.0" layoutY="14.0" prefHeight="200.0" prefWidth="725.0" spacing="10.0">
+                        <VBox layoutX="10.0" layoutY="14.0" prefHeight="200.0" prefWidth="725.0" spacing="15.0">
                             <children>
-                                <CheckBox mnemonicParsing="false" selected="true" text="Launch Tracker at Start-Up" />
-                                <CheckBox mnemonicParsing="false" text="Disable Automatic Reminders" />
-                                <VBox prefHeight="200.0" prefWidth="100.0">
+                                <!-- ADDED fx:id -->
+                                <CheckBox fx:id="startupCheckBox" mnemonicParsing="false" text="Launch Tracker at Start-Up" />
+                                <!-- ADDED fx:id -->
+                                <CheckBox fx:id="disableRemindersCheckBox" mnemonicParsing="false" text="Disable Automatic Reminders" />
+                                <VBox prefHeight="200.0" prefWidth="100.0" spacing="5.0">
                                     <children>
                                         <Label text="Automatic Reminder Interval:">
                                             <tooltip>
-                                                <Tooltip text="The time that must elapse after the app has been last closed for an automatic reminder to pop-up" />
+                                                <Tooltip text="Only show a reminder if the app hasn't been opened in this time." />
                                             </tooltip>
                                         </Label>
-                                        <ChoiceBox prefWidth="150.0" />
+                                        <!-- ADDED fx:id -->
+                                        <ChoiceBox fx:id="reminderIntervalChoiceBox" prefWidth="150.0" />
                                     </children>
                                 </VBox>
                             </children>

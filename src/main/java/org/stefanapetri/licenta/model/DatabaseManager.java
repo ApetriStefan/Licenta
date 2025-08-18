@@ -118,6 +118,57 @@ public class DatabaseManager {
         }
         return Optional.empty();
     }
+    /**
+     * Updates the executable path of a specific tracked application.
+     * @param appId The ID of the application to update.
+     * @param newPath The new executable file path.
+     */
+    public void updateApplicationPath(int appId, String newPath) {
+        String sql = "UPDATE tracked_applications SET executable_path = ? WHERE app_id = ?";
+        try (Connection conn = connect();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
+            pstmt.setString(1, newPath);
+            pstmt.setInt(2, appId);
+            pstmt.executeUpdate();
+
+        } catch (SQLException e) {
+            System.err.println("Error updating application path: " + e.getMessage());
+        }
+    }
+    /**
+     * Updates the 'last_closed_at' timestamp for a specific application to the current time.
+     * @param appId The ID of the application that was just closed.
+     */
+    public void updateLastClosedTimestamp(int appId) {
+        String sql = "UPDATE tracked_applications SET last_closed_at = CURRENT_TIMESTAMP WHERE app_id = ?";
+        try (Connection conn = connect();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, appId);
+            pstmt.executeUpdate();
+        } catch (SQLException e) {
+            System.err.println("Error updating last closed timestamp: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Fetches the last closed timestamp for a specific application.
+     * @param appId The ID of the application.
+     * @return An Optional containing the Timestamp, or empty if never recorded.
+     */
+    public Optional<Timestamp> getLastClosedTimestamp(int appId) {
+        String sql = "SELECT last_closed_at FROM tracked_applications WHERE app_id = ?";
+        try (Connection conn = connect();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, appId);
+            ResultSet rs = pstmt.executeQuery();
+            if (rs.next()) {
+                return Optional.ofNullable(rs.getTimestamp("last_closed_at"));
+            }
+        } catch (SQLException e) {
+            System.err.println("Error fetching last closed timestamp: " + e.getMessage());
+        }
+        return Optional.empty();
+    }
 
 }

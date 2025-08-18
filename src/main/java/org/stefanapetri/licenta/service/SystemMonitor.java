@@ -1,6 +1,6 @@
 package org.stefanapetri.licenta.service;
 
-import com.sun.jna.Memory; // <-- IMPORTANT: Add this new import
+import com.sun.jna.Memory;
 import com.sun.jna.platform.win32.Kernel32;
 import com.sun.jna.platform.win32.Psapi;
 import com.sun.jna.platform.win32.User32;
@@ -11,16 +11,16 @@ import javafx.application.Platform;
 import org.stefanapetri.licenta.model.TrackedApplication;
 
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class SystemMonitor implements Runnable {
 
-    // (All other fields and methods remain the same as the previous version)
     private final Map<String, TrackedApplication> trackedAppMap = new ConcurrentHashMap<>();
-    private String lastFocusedAppPath = "";
-    private int lastFocusedProcessId = 0;
+    private final Map<Integer, TrackedApplication> runningTrackedProcesses = new ConcurrentHashMap<>();
+    private String lastOpenedAppPath = ""; // Path of the app for which we last showed an "open" dialog
 
     private final AtomicBoolean isRunning = new AtomicBoolean(false);
     private SystemMonitorListener listener;
@@ -45,49 +45,62 @@ public class SystemMonitor implements Runnable {
         for (TrackedApplication app : apps) {
             trackedAppMap.put(app.getExecutablePath().toLowerCase(), app);
         }
+        runningTrackedProcesses.clear();
     }
 
     @Override
     public void run() {
         while (isRunning.get()) {
             try {
+                // --- Part 1: Check the currently focused window ---
                 HWND foregroundWindow = User32.INSTANCE.GetForegroundWindow();
-                if (foregroundWindow == null) {
-                    Thread.sleep(2000);
-                    continue;
-                }
+                if (foregroundWindow != null) {
+                    IntByReference processIdRef = new IntByReference();
+                    User32.INSTANCE.GetWindowThreadProcessId(foregroundWindow, processIdRef);
+                    int currentPid = processIdRef.getValue();
+                    String currentPath = getProcessPath(currentPid);
 
-                IntByReference processIdRef = new IntByReference();
-                User32.INSTANCE.GetWindowThreadProcessId(foregroundWindow, processIdRef);
-                int currentProcessId = processIdRef.getValue();
+                    if (currentPath != null && !currentPath.isEmpty()) {
+                        currentPath = currentPath.toLowerCase();
 
-                if (currentProcessId != lastFocusedProcessId) {
-                    String currentFocusedAppPath = getProcessPath(currentProcessId);
+                        if (trackedAppMap.containsKey(currentPath)) {
+                            TrackedApplication currentApp = trackedAppMap.get(currentPath);
+                            runningTrackedProcesses.putIfAbsent(currentPid, currentApp);
 
-                    if (currentFocusedAppPath != null && !currentFocusedAppPath.isEmpty()) {
-                        currentFocusedAppPath = currentFocusedAppPath.toLowerCase();
-
-                        if (trackedAppMap.containsKey(currentFocusedAppPath)) {
-                            TrackedApplication openedApp = trackedAppMap.get(currentFocusedAppPath);
-                            if (listener != null) {
-                                Platform.runLater(() -> listener.onMonitoredAppOpened(openedApp));
-                            }
-                        }
-
-                        if (lastFocusedAppPath != null && trackedAppMap.containsKey(lastFocusedAppPath)) {
-                            if (!isProcessRunning(lastFocusedProcessId)) {
-                                TrackedApplication closedApp = trackedAppMap.get(lastFocusedAppPath);
+                            // --- MODIFIED "OPEN" LOGIC ---
+                            // Only fire the event if the focused app is different from the one we last remembered.
+                            // This prevents our own pop-ups from causing the event to fire repeatedly.
+                            if (!currentPath.equals(lastOpenedAppPath)) {
                                 if (listener != null) {
-                                    Platform.runLater(() -> listener.onMonitoredAppClosed(closedApp));
+                                    Platform.runLater(() -> listener.onMonitoredAppOpened(currentApp));
                                 }
+                                lastOpenedAppPath = currentPath; // Remember this path
                             }
                         }
-                        lastFocusedAppPath = currentFocusedAppPath;
+                        // We NO LONGER reset lastOpenedAppPath here.
                     }
                 }
-                lastFocusedProcessId = currentProcessId;
 
-                Thread.sleep(2000);
+                // --- Part 2: Reliably check for closed applications ---
+                for (Integer pid : new HashSet<>(runningTrackedProcesses.keySet())) {
+                    if (!isProcessRunning(pid)) {
+                        TrackedApplication closedApp = runningTrackedProcesses.remove(pid);
+                        if (closedApp != null) {
+                            // --- NEW "CLOSE" LOGIC ---
+                            // If the app that just closed is the one we were remembering, we can now forget it.
+                            // This allows the "open" pop-up to appear again if the user re-launches it.
+                            if (closedApp.getExecutablePath().equalsIgnoreCase(lastOpenedAppPath)) {
+                                lastOpenedAppPath = "";
+                            }
+
+                            if (listener != null) {
+                                Platform.runLater(() -> listener.onMonitoredAppClosed(closedApp));
+                            }
+                        }
+                    }
+                }
+
+                Thread.sleep(1500);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 isRunning.set(false);
@@ -97,24 +110,15 @@ public class SystemMonitor implements Runnable {
         }
     }
 
-    // --- THIS IS THE CORRECTED METHOD ---
+    // (getProcessPath and isProcessRunning methods are unchanged)
     private String getProcessPath(int processId) {
-        // Allocate a block of native memory for the path buffer using Memory.
-        Memory buffer = new Memory(2048); // 2048 bytes should be sufficient for any path.
-
+        Memory buffer = new Memory(2048);
         WinNT.HANDLE processHandle = Kernel32.INSTANCE.OpenProcess(
                 Kernel32.PROCESS_QUERY_INFORMATION | Kernel32.PROCESS_VM_READ,
-                false,
-                processId
-        );
-
+                false, processId);
         if (processHandle != null) {
             try {
-                // Pass the Memory object (which is a Pointer) to the native function.
-                // The last argument is the size of the buffer in TCHARs (wide characters), not bytes.
                 Psapi.INSTANCE.GetModuleFileNameEx(processHandle, null, buffer, 1024);
-
-                // Read the Unicode (wide) string from the native memory block.
                 return buffer.getWideString(0);
             } finally {
                 Kernel32.INSTANCE.CloseHandle(processHandle);
@@ -126,10 +130,7 @@ public class SystemMonitor implements Runnable {
     private boolean isProcessRunning(int processId) {
         if (processId == 0) return false;
         WinNT.HANDLE processHandle = Kernel32.INSTANCE.OpenProcess(Kernel32.PROCESS_QUERY_INFORMATION, false, processId);
-        if (processHandle == null) {
-            return false;
-        }
-
+        if (processHandle == null) return false;
         try {
             IntByReference exitCode = new IntByReference();
             boolean result = Kernel32.INSTANCE.GetExitCodeProcess(processHandle, exitCode);
