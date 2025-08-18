@@ -10,7 +10,7 @@ public class DatabaseManager {
     // !!! IMPORTANT: CHANGE THESE TO MATCH YOUR POSTGRESQL CONFIGURATION !!!
     private final String dbUrl = "jdbc:postgresql://localhost:5432/app_tracker";
     private final String dbUser = "postgres"; // or your username
-    private final String dbPassword = "password"; // your password
+    private final String dbPassword = "postgres"; // your password
 
     private Connection connect() throws SQLException {
         return DriverManager.getConnection(dbUrl, dbUser, dbPassword);
@@ -78,7 +78,25 @@ public class DatabaseManager {
             System.err.println("Error saving memo: " + e.getMessage());
         }
     }
+    /**
+     * Updates the text of a specific memo in the database.
+     * @param memoId The ID of the memo to update.
+     * @param newText The new transcription text to save.
+     */
+    public void updateMemoText(int memoId, String newText) {
+        String sql = "UPDATE memos SET transcription_text = ? WHERE memo_id = ?";
+        try (Connection conn = connect();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
+            pstmt.setString(1, newText);
+            pstmt.setInt(2, memoId);
+            pstmt.executeUpdate();
+
+        } catch (SQLException e) {
+            System.err.println("Error updating memo text: " + e.getMessage());
+            // In a real application, you might show an error dialog here.
+        }
+    }
     public Optional<Memo> getLatestMemoForApp(int appId) {
         String sql = "SELECT * FROM memos WHERE app_id = ? ORDER BY created_at DESC LIMIT 1";
         try (Connection conn = connect();
@@ -100,4 +118,6 @@ public class DatabaseManager {
         }
         return Optional.empty();
     }
+
+
 }
