@@ -97,16 +97,19 @@ public class DatabaseManager {
             // In a real application, you might show an error dialog here.
         }
     }
-    public Optional<Memo> getLatestMemoForApp(int appId) {
-        String sql = "SELECT * FROM memos WHERE app_id = ? ORDER BY created_at DESC LIMIT 1";
+    public Optional<MemoViewItem> getLatestMemoForApp(int appId) {
+        String sql = "SELECT m.*, ta.app_name FROM memos m " +
+                "JOIN tracked_applications ta ON m.app_id = ta.app_id " +
+                "WHERE m.app_id = ? ORDER BY m.created_at DESC LIMIT 1";
         try (Connection conn = connect();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setInt(1, appId);
             ResultSet rs = pstmt.executeQuery();
             if (rs.next()) {
-                Memo memo = new Memo(
+                MemoViewItem memo = new MemoViewItem(
                         rs.getInt("memo_id"),
                         rs.getInt("app_id"),
+                        rs.getString("app_name"), // NEW: Get app_name from join
                         rs.getString("transcription_text"),
                         rs.getString("audio_file_path"),
                         rs.getTimestamp("created_at")
@@ -118,11 +121,45 @@ public class DatabaseManager {
         }
         return Optional.empty();
     }
-    /**
-     * Updates the executable path of a specific tracked application.
-     * @param appId The ID of the application to update.
-     * @param newPath The new executable file path.
-     */
+
+    // --- MODIFIED: Return type changed to List<MemoViewItem> ---
+    public List<MemoViewItem> getAllMemosForApp(int appId) {
+        List<MemoViewItem> memos = new ArrayList<>();
+        String sql = "SELECT m.*, ta.app_name FROM memos m " +
+                "JOIN tracked_applications ta ON m.app_id = ta.app_id " +
+                "WHERE m.app_id = ? ORDER BY m.created_at DESC";
+        try (Connection conn = connect();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, appId);
+            ResultSet rs = pstmt.executeQuery();
+            while (rs.next()) {
+                memos.add(new MemoViewItem(
+                        rs.getInt("memo_id"),
+                        rs.getInt("app_id"),
+                        rs.getString("app_name"), // NEW: Get app_name from join
+                        rs.getString("transcription_text"),
+                        rs.getString("audio_file_path"),
+                        rs.getTimestamp("created_at")
+                ));
+            }
+        } catch (SQLException e) {
+            System.err.println("Error fetching all memos for app: " + e.getMessage());
+        }
+        return memos;
+    }
+
+    public void deleteMemo(int memoId) {
+        String sql = "DELETE FROM memos WHERE memo_id = ?";
+        try (Connection conn = connect();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, memoId);
+            pstmt.executeUpdate();
+            System.out.println("Memo with ID " + memoId + " deleted successfully.");
+        } catch (SQLException e) {
+            System.err.println("Error deleting memo: " + e.getMessage());
+        }
+    }
+
     public void updateApplicationPath(int appId, String newPath) {
         String sql = "UPDATE tracked_applications SET executable_path = ? WHERE app_id = ?";
         try (Connection conn = connect();
@@ -136,10 +173,7 @@ public class DatabaseManager {
             System.err.println("Error updating application path: " + e.getMessage());
         }
     }
-    /**
-     * Updates the 'last_closed_at' timestamp for a specific application to the current time.
-     * @param appId The ID of the application that was just closed.
-     */
+
     public void updateLastClosedTimestamp(int appId) {
         String sql = "UPDATE tracked_applications SET last_closed_at = CURRENT_TIMESTAMP WHERE app_id = ?";
         try (Connection conn = connect();
@@ -151,11 +185,6 @@ public class DatabaseManager {
         }
     }
 
-    /**
-     * Fetches the last closed timestamp for a specific application.
-     * @param appId The ID of the application.
-     * @return An Optional containing the Timestamp, or empty if never recorded.
-     */
     public Optional<Timestamp> getLastClosedTimestamp(int appId) {
         String sql = "SELECT last_closed_at FROM tracked_applications WHERE app_id = ?";
         try (Connection conn = connect();
@@ -171,48 +200,37 @@ public class DatabaseManager {
         return Optional.empty();
     }
 
+    // --- NEW METHOD: Search Memos ---
     /**
-     * Retrieves all memos associated with a specific application, ordered by creation date (newest first).
-     * @param appId The ID of the application.
-     * @return A list of Memo objects. Returns an empty list if no memos are found.
+     * Searches memos by their transcription text and/or associated application name.
+     * @param query The search string.
+     * @return A list of MemoViewItem objects matching the query.
      */
-    public List<Memo> getAllMemosForApp(int appId) {
-        List<Memo> memos = new ArrayList<>();
-        // Note: The original getLatestMemoForApp was LIMIT 1, this one gets all.
-        String sql = "SELECT * FROM memos WHERE app_id = ? ORDER BY created_at DESC";
+    public List<MemoViewItem> searchMemos(String query) {
+        List<MemoViewItem> results = new ArrayList<>();
+        String searchQuery = "%" + query.toLowerCase() + "%"; // Case-insensitive search
+        String sql = "SELECT m.*, ta.app_name FROM memos m " +
+                "JOIN tracked_applications ta ON m.app_id = ta.app_id " +
+                "WHERE LOWER(m.transcription_text) LIKE ? OR LOWER(ta.app_name) LIKE ? " +
+                "ORDER BY m.created_at DESC";
         try (Connection conn = connect();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setInt(1, appId);
+            pstmt.setString(1, searchQuery);
+            pstmt.setString(2, searchQuery);
             ResultSet rs = pstmt.executeQuery();
             while (rs.next()) {
-                memos.add(new Memo(
+                results.add(new MemoViewItem(
                         rs.getInt("memo_id"),
                         rs.getInt("app_id"),
+                        rs.getString("app_name"),
                         rs.getString("transcription_text"),
                         rs.getString("audio_file_path"),
                         rs.getTimestamp("created_at")
                 ));
             }
         } catch (SQLException e) {
-            System.err.println("Error fetching all memos for app: " + e.getMessage());
+            System.err.println("Error searching memos: " + e.getMessage());
         }
-        return memos;
+        return results;
     }
-
-    /**
-     * Deletes a specific memo from the database.
-     * @param memoId The ID of the memo to delete.
-     */
-    public void deleteMemo(int memoId) {
-        String sql = "DELETE FROM memos WHERE memo_id = ?";
-        try (Connection conn = connect();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setInt(1, memoId);
-            pstmt.executeUpdate();
-            System.out.println("Memo with ID " + memoId + " deleted successfully.");
-        } catch (SQLException e) {
-            System.err.println("Error deleting memo: " + e.getMessage());
-        }
-    }
-
 }

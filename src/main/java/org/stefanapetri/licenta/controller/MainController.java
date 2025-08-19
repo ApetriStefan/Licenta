@@ -12,7 +12,7 @@ import javafx.scene.web.WebView;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import org.stefanapetri.licenta.model.DatabaseManager;
-import org.stefanapetri.licenta.model.Memo;
+import org.stefanapetri.licenta.model.MemoViewItem;
 import org.stefanapetri.licenta.model.TrackedApplication;
 import org.stefanapetri.licenta.service.*;
 import org.stefanapetri.licenta.view.DialogHelper;
@@ -27,17 +27,18 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
+import java.util.List;
 import java.util.Optional;
 import java.util.ResourceBundle;
 
 public class MainController implements Initializable, SystemMonitorListener {
 
-    // --- FXML Fields for Settings Tab (unchanged) ---
+    // --- FXML Fields for Settings Tab ---
     @FXML private CheckBox startupCheckBox;
     @FXML private CheckBox disableRemindersCheckBox;
     @FXML private ChoiceBox<ReminderInterval> reminderIntervalChoiceBox;
 
-    // --- FXML Fields for Main Tab (Updated for Historical Reminders) ---
+    // --- FXML Fields for Main Tab ---
     @FXML private TableView<TrackedApplication> appTableView;
     @FXML private TableColumn<TrackedApplication, String> appNameColumn;
     @FXML private TableColumn<TrackedApplication, String> appPathColumn;
@@ -49,14 +50,25 @@ public class MainController implements Initializable, SystemMonitorListener {
     @FXML private Button editOrSaveButton;
     @FXML private Button cancelEditButton;
 
-    // NEW FXML fields for historical reminders
-    @FXML private TableView<Memo> historicalMemosTableView;
-    @FXML private TableColumn<Memo, String> historyDateColumn;
-    @FXML private TableColumn<Memo, String> historyPreviewColumn;
+    // FXML fields for historical reminders
+    @FXML private TableView<MemoViewItem> historicalMemosTableView;
+    @FXML private TableColumn<MemoViewItem, String> historyDateColumn;
+    @FXML private TableColumn<MemoViewItem, String> historyPreviewColumn;
     @FXML private Button viewHistoricalMemoButton;
     @FXML private Button deleteHistoricalMemoButton;
 
-    // --- Dependencies (unchanged) ---
+    // --- FXML fields for Search Tab ---
+    @FXML private TextField searchQueryTextField;
+    @FXML private Button searchButton;
+    @FXML private TableView<MemoViewItem> searchResultsTableView;
+    @FXML private TableColumn<MemoViewItem, String> searchAppColumn;
+    @FXML private TableColumn<MemoViewItem, String> searchDateColumn;
+    @FXML private TableColumn<MemoViewItem, String> searchPreviewColumn;
+    @FXML private Button viewSearchMemoButton;
+    @FXML private Button deleteSearchMemoButton;
+
+
+    // --- Dependencies ---
     private final DatabaseManager dbManager;
     private final SystemMonitor systemMonitor;
     private final PythonBridge pythonBridge;
@@ -64,12 +76,13 @@ public class MainController implements Initializable, SystemMonitorListener {
     private final SettingsManager settingsManager;
     private final StartupManager startupManager;
 
-    // --- State (unchanged) ---
+    // --- State ---
     private boolean isInEditMode = false;
     private final ObservableList<TrackedApplication> trackedAppsList = FXCollections.observableArrayList();
-    private final ObservableList<Memo> historicalMemosList = FXCollections.observableArrayList(); // NEW
+    private final ObservableList<MemoViewItem> historicalMemosList = FXCollections.observableArrayList();
+    private final ObservableList<MemoViewItem> searchResultsList = FXCollections.observableArrayList();
     private boolean isRecording = false;
-    private Memo currentMemo = null;
+    private MemoViewItem currentMemo = null;
 
     public MainController(DatabaseManager dbManager, SystemMonitor systemMonitor, PythonBridge pythonBridge) {
         this.dbManager = dbManager;
@@ -88,36 +101,58 @@ public class MainController implements Initializable, SystemMonitorListener {
         appPathColumn.setCellValueFactory(new PropertyValueFactory<>("executablePath"));
         appTableView.setItems(trackedAppsList);
 
-        // NEW: Setup historical memos table columns
+        // Setup historical memos table columns
         historyDateColumn.setCellValueFactory(cellData -> {
             Timestamp timestamp = cellData.getValue().createdAt();
-            DateTimeFormatter formatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT); // E.g., 8/20/24, 10:30 PM
+            DateTimeFormatter formatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT);
             return new ReadOnlyStringWrapper(timestamp.toLocalDateTime().format(formatter));
         });
+        // MODIFIED: Use lambda for historyPreviewColumn to access record component
         historyPreviewColumn.setCellValueFactory(cellData -> {
             String fullText = cellData.getValue().transcriptionText();
-            // Take the first 50 characters as a preview
             String preview = fullText.length() > 50 ? fullText.substring(0, 50) + "..." : fullText;
-            return new ReadOnlyStringWrapper(preview.replaceAll("\n", " ")); // Remove newlines for single-line preview
+            return new ReadOnlyStringWrapper(preview.replaceAll("\n", " "));
         });
         historicalMemosTableView.setItems(historicalMemosList);
 
         appTableView.getSelectionModel().selectedItemProperty().addListener(
                 (obs, oldSelection, newSelection) -> {
-                    toggleEditMode(false); // Always revert to view mode
+                    toggleEditMode(false);
                     if (newSelection != null) {
                         loadMemoForApp(newSelection);
-                        loadHistoricalMemosForApp(newSelection); // NEW
+                        loadHistoricalMemosForApp(newSelection);
                         updateButtonStates(true);
                     } else {
                         updateButtonStates(false);
                         currentMemo = null;
                         reminderTextArea.clear();
                         reminderWebView.getEngine().loadContent(MarkdownConverter.toHtml(""));
-                        historicalMemosList.clear(); // NEW: Clear historical list when no app is selected
+                        historicalMemosList.clear();
                     }
                 }
         );
+
+        // Setup search results table columns
+        // MODIFIED: Use lambda for searchAppColumn to access record component
+        searchAppColumn.setCellValueFactory(cellData -> new ReadOnlyStringWrapper(cellData.getValue().appName()));
+        searchDateColumn.setCellValueFactory(cellData -> {
+            Timestamp timestamp = cellData.getValue().createdAt();
+            DateTimeFormatter formatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT);
+            return new ReadOnlyStringWrapper(timestamp.toLocalDateTime().format(formatter));
+        });
+        searchPreviewColumn.setCellValueFactory(cellData -> {
+            String fullText = cellData.getValue().transcriptionText();
+            String preview = fullText.length() > 100 ? fullText.substring(0, 100) + "..." : fullText;
+            return new ReadOnlyStringWrapper(preview.replaceAll("\n", " "));
+        });
+        searchResultsTableView.setItems(searchResultsList);
+
+        searchResultsTableView.getSelectionModel().selectedItemProperty().addListener(
+                (obs, oldSelection, newSelection) -> {
+                    updateSearchButtonStates(newSelection != null);
+                }
+        );
+        updateSearchButtonStates(false);
 
         loadApplicationsFromDB();
         updateButtonStates(false);
@@ -152,19 +187,17 @@ public class MainController implements Initializable, SystemMonitorListener {
     }
 
     private void loadMemoForApp(TrackedApplication app) {
-        Optional<Memo> latestMemo = dbManager.getLatestMemoForApp(app.getAppId());
+        Optional<MemoViewItem> latestMemo = dbManager.getLatestMemoForApp(app.getAppId());
         this.currentMemo = latestMemo.orElse(null);
-        String markdownText = latestMemo.map(Memo::transcriptionText).orElse("No reminder found for this application.");
+        String markdownText = latestMemo.map(MemoViewItem::transcriptionText).orElse("No reminder found for this application.");
 
         reminderTextArea.setText(markdownText);
         reminderWebView.getEngine().loadContent(MarkdownConverter.toHtml(markdownText));
     }
 
-    // NEW: Load all historical memos for the selected app
     private void loadHistoricalMemosForApp(TrackedApplication app) {
         historicalMemosList.setAll(dbManager.getAllMemosForApp(app.getAppId()));
-        // Ensure "View Memo" and "Delete Memo" buttons are correctly enabled/disabled
-        updateHistoricalButtonStates(false); // No memo selected initially
+        updateHistoricalButtonStates(false);
         historicalMemosTableView.getSelectionModel().selectedItemProperty().addListener(
                 (obs, oldSelection, newSelection) -> {
                     updateHistoricalButtonStates(newSelection != null);
@@ -178,14 +211,17 @@ public class MainController implements Initializable, SystemMonitorListener {
         removeAppButton.setDisable(!itemSelected);
         editOrSaveButton.setDisable(!itemSelected || currentMemo == null);
 
-        // Disable historical buttons if no app is selected
         updateHistoricalButtonStates(false);
     }
 
-    // NEW: Helper for historical memo buttons
     private void updateHistoricalButtonStates(boolean historicalMemoSelected) {
         viewHistoricalMemoButton.setDisable(!historicalMemoSelected);
         deleteHistoricalMemoButton.setDisable(!historicalMemoSelected);
+    }
+
+    private void updateSearchButtonStates(boolean searchResultSelected) {
+        viewSearchMemoButton.setDisable(!searchResultSelected);
+        deleteSearchMemoButton.setDisable(!searchResultSelected);
     }
 
     private void toggleEditMode(boolean isEditing) {
@@ -196,10 +232,10 @@ public class MainController implements Initializable, SystemMonitorListener {
 
         if (isEditing) {
             editOrSaveButton.setText("Save Changes");
-            editOrSaveButton.setStyle("-fx-background-color: #28A745;"); // Green for save
+            editOrSaveButton.setStyle("-fx-background-color: #28A745;");
         } else {
             editOrSaveButton.setText("Edit Reminder");
-            editOrSaveButton.setStyle("-fx-background-color: #FFC107;"); // Yellow for edit
+            editOrSaveButton.setStyle("-fx-background-color: #FFC107;");
             editOrSaveButton.setDisable(appTableView.getSelectionModel().getSelectedItem() == null || currentMemo == null);
         }
     }
@@ -208,7 +244,9 @@ public class MainController implements Initializable, SystemMonitorListener {
         isRecording = true;
         String userTempDir = System.getProperty("java.io.tmpdir");
         String audioFilePath = new File(userTempDir, "temp_memo.wav").getAbsolutePath();
+
         StageAndController<RecordingController> sac = DialogHelper.showRecordingDialog(app, audioRecorder, audioFilePath);
+
         if (sac != null) {
             sac.stage.setOnHidden(e -> {
                 audioRecorder.stopRecording();
@@ -231,10 +269,9 @@ public class MainController implements Initializable, SystemMonitorListener {
             if (transcription != null && !transcription.startsWith("Error:")) {
                 dbManager.saveMemo(app.getAppId(), transcription, audioFilePath);
                 Platform.runLater(() -> {
-                    // Update main memo and historical list if app is still selected
                     if (app.equals(appTableView.getSelectionModel().getSelectedItem())) {
-                        loadMemoForApp(app); // Refresh latest memo
-                        loadHistoricalMemosForApp(app); // NEW: Refresh historical list
+                        loadMemoForApp(app);
+                        loadHistoricalMemosForApp(app);
                     }
                     DialogHelper.showTranscriptionResultDialog(transcription, audioFilePath);
                 });
@@ -350,9 +387,8 @@ public class MainController implements Initializable, SystemMonitorListener {
 
             dbManager.updateMemoText(memoId, updatedText);
 
-            // Re-load the latest memo and refresh historical list
             loadMemoForApp(selectedApp);
-            loadHistoricalMemosForApp(selectedApp); // NEW
+            loadHistoricalMemosForApp(selectedApp);
 
             toggleEditMode(false);
 
@@ -372,10 +408,9 @@ public class MainController implements Initializable, SystemMonitorListener {
         toggleEditMode(false);
     }
 
-    // NEW: Handle viewing a historical memo
     @FXML
     private void handleViewHistoricalMemo() {
-        Memo selectedMemo = historicalMemosTableView.getSelectionModel().getSelectedItem();
+        MemoViewItem selectedMemo = historicalMemosTableView.getSelectionModel().getSelectedItem();
         if (selectedMemo != null) {
             DialogHelper.showTranscriptionResultDialog(selectedMemo.transcriptionText(), selectedMemo.audioFilePath());
         } else {
@@ -386,10 +421,9 @@ public class MainController implements Initializable, SystemMonitorListener {
         }
     }
 
-    // NEW: Handle deleting a historical memo
     @FXML
     private void handleDeleteHistoricalMemo() {
-        Memo selectedMemo = historicalMemosTableView.getSelectionModel().getSelectedItem();
+        MemoViewItem selectedMemo = historicalMemosTableView.getSelectionModel().getSelectedItem();
         if (selectedMemo != null) {
             Optional<ButtonType> result = DialogHelper.createTopMostAlert(
                     Alert.AlertType.CONFIRMATION, "Confirm Deletion",
@@ -400,11 +434,10 @@ public class MainController implements Initializable, SystemMonitorListener {
                 dbManager.deleteMemo(selectedMemo.memoId());
                 TrackedApplication currentApp = appTableView.getSelectionModel().getSelectedItem();
                 if (currentApp != null) {
-                    // Reload both latest and historical if the current app is still selected
                     loadMemoForApp(currentApp);
                     loadHistoricalMemosForApp(currentApp);
                 } else {
-                    historicalMemosList.clear(); // Clear list if no app selected after deletion
+                    historicalMemosList.clear();
                 }
                 DialogHelper.createTopMostAlert(
                         Alert.AlertType.INFORMATION, "Deleted",
@@ -415,6 +448,75 @@ public class MainController implements Initializable, SystemMonitorListener {
             DialogHelper.createTopMostAlert(
                     Alert.AlertType.WARNING, "No Memo Selected",
                     "Please select a historical memo to delete.", null
+            );
+        }
+    }
+
+    // --- Search Tab Handlers ---
+
+    @FXML
+    private void handleSearch() {
+        String query = searchQueryTextField.getText();
+        if (query == null || query.trim().isEmpty()) {
+            searchResultsList.clear();
+            DialogHelper.createTopMostAlert(
+                    Alert.AlertType.INFORMATION, "Empty Search",
+                    "Please enter a search query.", null
+            );
+            return;
+        }
+        List<MemoViewItem> results = dbManager.searchMemos(query.trim());
+        searchResultsList.setAll(results);
+        updateSearchButtonStates(false);
+
+        if (results.isEmpty()) {
+            DialogHelper.createTopMostAlert(
+                    Alert.AlertType.INFORMATION, "No Results",
+                    "No memos found matching your search query.", null
+            );
+        }
+    }
+
+    @FXML
+    private void handleViewSearchMemo() {
+        MemoViewItem selectedMemo = searchResultsTableView.getSelectionModel().getSelectedItem();
+        if (selectedMemo != null) {
+            DialogHelper.showTranscriptionResultDialog(selectedMemo.transcriptionText(), selectedMemo.audioFilePath());
+        } else {
+            DialogHelper.createTopMostAlert(
+                    Alert.AlertType.WARNING, "No Memo Selected",
+                    "Please select a memo from the search results to view.", null
+            );
+        }
+    }
+
+    @FXML
+    private void handleDeleteSearchMemo() {
+        MemoViewItem selectedMemo = searchResultsTableView.getSelectionModel().getSelectedItem();
+        if (selectedMemo != null) {
+            Optional<ButtonType> result = DialogHelper.createTopMostAlert(
+                    Alert.AlertType.CONFIRMATION, "Confirm Deletion",
+                    "Delete selected search result memo?",
+                    "Are you sure you want to delete this memo? This action cannot be undone."
+            );
+            if (result.isPresent() && result.get() == ButtonType.OK) {
+                dbManager.deleteMemo(selectedMemo.memoId());
+                handleSearch();
+
+                TrackedApplication currentApp = appTableView.getSelectionModel().getSelectedItem();
+                if (currentApp != null && currentApp.getAppId() == selectedMemo.appId()) {
+                    loadMemoForApp(currentApp);
+                    loadHistoricalMemosForApp(currentApp);
+                }
+                DialogHelper.createTopMostAlert(
+                        Alert.AlertType.INFORMATION, "Deleted",
+                        "Memo deleted successfully.", null
+                );
+            }
+        } else {
+            DialogHelper.createTopMostAlert(
+                    Alert.AlertType.WARNING, "No Memo Selected",
+                    "Please select a memo from the search results to delete.", null
             );
         }
     }
@@ -442,7 +544,7 @@ public class MainController implements Initializable, SystemMonitorListener {
     public void onMonitoredAppOpened(TrackedApplication app) {
         if (settingsManager.areRemindersDisabled()) return;
         Platform.runLater(() -> {
-            Optional<Memo> memoOpt = dbManager.getLatestMemoForApp(app.getAppId());
+            Optional<MemoViewItem> memoOpt = dbManager.getLatestMemoForApp(app.getAppId());
             Optional<Timestamp> lastClosedOpt = dbManager.getLastClosedTimestamp(app.getAppId());
 
             memoOpt.ifPresent(memo -> {

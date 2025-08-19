@@ -11,16 +11,14 @@ import javafx.stage.StageStyle;
 import org.stefanapetri.licenta.MainApplication;
 import org.stefanapetri.licenta.controller.RecordingController;
 import org.stefanapetri.licenta.controller.ReminderViewController;
-import org.stefanapetri.licenta.controller.TranscribingController;
 import org.stefanapetri.licenta.controller.TranscriptionResultController;
-import org.stefanapetri.licenta.model.Memo;
+import org.stefanapetri.licenta.model.MemoViewItem; // NEW IMPORT
 import org.stefanapetri.licenta.model.TrackedApplication;
 import org.stefanapetri.licenta.service.AudioRecorder;
 
 import javax.sound.sampled.LineUnavailableException;
 import java.io.IOException;
 import java.util.Optional;
-
 
 public class DialogHelper {
 
@@ -34,20 +32,21 @@ public class DialogHelper {
         stage.requestFocus();
     }
 
-    public static void showReminderDialog(Memo memo) {
+    // MODIFIED: Accepts MemoViewItem
+    public static void showReminderDialog(MemoViewItem memo) {
         try {
             FXMLLoader loader = new FXMLLoader(MainApplication.class.getResource("Reminder.fxml"));
             Parent root = loader.load();
 
             ReminderViewController controller = loader.getController();
-            controller.setMemo(memo);
+            controller.setMemo(memo); // Pass MemoViewItem
 
             Stage stage = new Stage();
             stage.initModality(Modality.APPLICATION_MODAL);
             stage.setTitle("Last Session Reminder");
             stage.setScene(new Scene(root));
 
-            applyDefaultStageSettings(stage); // Apply icon and focus settings
+            applyDefaultStageSettings(stage);
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -84,7 +83,7 @@ public class DialogHelper {
             stage.setTitle("Recording...");
             stage.setScene(new Scene(root));
 
-            applyDefaultStageSettings(stage); // Apply icon and focus settings
+            applyDefaultStageSettings(stage);
 
             return new StageAndController<>(stage, controller);
         } catch (IOException e) {
@@ -104,7 +103,7 @@ public class DialogHelper {
             stage.setTitle("Transcribing...");
             stage.setScene(new Scene(root));
 
-            applyDefaultStageSettings(stage); // Apply icon and focus settings
+            applyDefaultStageSettings(stage);
 
             return stage;
         } catch (IOException e) {
@@ -132,8 +131,8 @@ public class DialogHelper {
             stage.setTitle("Transcription Result");
             stage.setScene(new Scene(root));
 
-            applyDefaultStageSettings(stage); // Apply icon and focus settings
-            stage.showAndWait(); // This one specifically waits
+            applyDefaultStageSettings(stage);
+            stage.showAndWait();
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -153,7 +152,6 @@ public class DialogHelper {
         alert.setContentText(content);
 
         Stage stage = (Stage) alert.getDialogPane().getScene().getWindow();
-        // For Alerts, apply icon separately as we don't call applyDefaultStageSettings
         if (MainApplication.applicationIcon != null) {
             stage.getIcons().add(MainApplication.applicationIcon);
         }
