@@ -17,13 +17,22 @@ import org.stefanapetri.licenta.model.Memo;
 import org.stefanapetri.licenta.model.TrackedApplication;
 import org.stefanapetri.licenta.service.AudioRecorder;
 
-import javax.sound.sampled.LineUnavailableException; // NEW IMPORT
+import javax.sound.sampled.LineUnavailableException;
 import java.io.IOException;
 import java.util.Optional;
 
 
-
 public class DialogHelper {
+
+    private static void applyDefaultStageSettings(Stage stage) {
+        if (MainApplication.applicationIcon != null) {
+            stage.getIcons().add(MainApplication.applicationIcon);
+        }
+        stage.setAlwaysOnTop(true);
+        stage.show();
+        stage.toFront();
+        stage.requestFocus();
+    }
 
     public static void showReminderDialog(Memo memo) {
         try {
@@ -38,10 +47,7 @@ public class DialogHelper {
             stage.setTitle("Last Session Reminder");
             stage.setScene(new Scene(root));
 
-            stage.setAlwaysOnTop(true);
-            stage.show();
-            stage.toFront();
-            stage.requestFocus();
+            applyDefaultStageSettings(stage); // Apply icon and focus settings
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -54,7 +60,6 @@ public class DialogHelper {
         }
     }
 
-    // --- MODIFIED: showRecordingDialog now correctly calls startRecording ---
     public static StageAndController<RecordingController> showRecordingDialog(TrackedApplication app, AudioRecorder recorder, String audioFilePath) {
         try {
             FXMLLoader loader = new FXMLLoader(MainApplication.class.getResource("RecordingView.fxml"));
@@ -63,8 +68,6 @@ public class DialogHelper {
             RecordingController controller = loader.getController();
             controller.setAppName(app.getAppName());
 
-            // --- NEW: Start recording HERE and pass the visualizer consumer ---
-            // Catch LineUnavailableException here, as it directly relates to starting the mic.
             try {
                 recorder.startRecording(audioFilePath, controller.getAudioDataConsumer());
             } catch (LineUnavailableException e) {
@@ -72,9 +75,8 @@ public class DialogHelper {
                         Alert.AlertType.ERROR, "Recording Error",
                         "Microphone not available or not supported.", e.getMessage()
                 );
-                return null; // Cannot proceed without mic access
+                return null;
             }
-            // --- END NEW ---
 
             Stage stage = new Stage();
             stage.initModality(Modality.APPLICATION_MODAL);
@@ -82,10 +84,7 @@ public class DialogHelper {
             stage.setTitle("Recording...");
             stage.setScene(new Scene(root));
 
-            stage.setAlwaysOnTop(true);
-            stage.show();
-            stage.toFront();
-            stage.requestFocus();
+            applyDefaultStageSettings(stage); // Apply icon and focus settings
 
             return new StageAndController<>(stage, controller);
         } catch (IOException e) {
@@ -105,10 +104,7 @@ public class DialogHelper {
             stage.setTitle("Transcribing...");
             stage.setScene(new Scene(root));
 
-            stage.setAlwaysOnTop(true);
-            stage.show();
-            stage.toFront();
-            stage.requestFocus();
+            applyDefaultStageSettings(stage); // Apply icon and focus settings
 
             return stage;
         } catch (IOException e) {
@@ -136,8 +132,8 @@ public class DialogHelper {
             stage.setTitle("Transcription Result");
             stage.setScene(new Scene(root));
 
-            stage.setAlwaysOnTop(true);
-            stage.showAndWait();
+            applyDefaultStageSettings(stage); // Apply icon and focus settings
+            stage.showAndWait(); // This one specifically waits
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -157,6 +153,10 @@ public class DialogHelper {
         alert.setContentText(content);
 
         Stage stage = (Stage) alert.getDialogPane().getScene().getWindow();
+        // For Alerts, apply icon separately as we don't call applyDefaultStageSettings
+        if (MainApplication.applicationIcon != null) {
+            stage.getIcons().add(MainApplication.applicationIcon);
+        }
         stage.setAlwaysOnTop(true);
 
         return alert.showAndWait();
