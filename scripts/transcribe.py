@@ -35,13 +35,14 @@ def transcribe_audio(file_path):
 
     # --- NEW: Call Gemini API ---
     try:
-        model = genai.GenerativeModel('gemini-2.5-flash') # Use the gemini-pro model for text
+        model = genai.GenerativeModel('gemini-2.5-flash') # Use the gemini-flash model for text
 
         # Craft a detailed prompt for Gemini
         prompt = f"""
         You are an AI assistant designed to help users recall their work sessions. 
-        Given a voice memo transcription about what the user was doing in an application, 
-        please process it and provide a concise, structured summary. The summary can be in any language in which the transcription is provided, do not translate it. If there are small parts of the transcription in another language than the majority, use them as-is and provide a translation in (parantheses).
+        Given a voice memo transcription about what the user was last doing in an application, 
+        please process it and provide a concise, structured summary. The summary can be in any language in which the transcription is provided,
+        do not translate it. If there are small parts of the transcription in another language than the majority of the text, use them as-is and provide a translation in (parantheses).
 
         Your task involves the following:
         1.  **Resume/Identify Activities:** Extract the core activities, tasks, decisions, problems encountered, or progress made. Focus on "what was done" and "what needs to be done next".
@@ -50,7 +51,7 @@ def transcribe_audio(file_path):
         4.  **Analysis (Implicit Actions):** Identify any explicit or implied action items or next steps.
         5.  **Formatting:** Present your findings clearly using bullet points. Start with a main summary point if applicable, then detail specific activities/tasks.
 
-        Example Output Format (-titles can be in any language, as specified before, and some sections can also be missing if user hasn't specified anything fitting):
+        Example Output Format (-titles can be in any language, as specified before, and some -sections can also be missing if user hasn't specified anything fitting):
         - Brief summary of the session.
         - Completed:
             - [Task 1 completed]

@@ -30,7 +30,7 @@
                     </padding>
                     <children>
                         <!-- 1. The TableView has a fixed preferred width -->
-                        <TableView fx:id="appTableView" prefWidth="550.0">
+                        <TableView fx:id="appTableView" prefWidth="550.0" minWidth="550">
                             <columns>
                                 <TableColumn fx:id="appNameColumn" prefWidth="200.0" text="Application Name" />
                                 <TableColumn fx:id="appPathColumn" prefWidth="349.0" text="Path" />
