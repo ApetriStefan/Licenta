@@ -11,8 +11,9 @@ import javafx.stage.StageStyle;
 import org.stefanapetri.licenta.MainApplication;
 import org.stefanapetri.licenta.controller.RecordingController;
 import org.stefanapetri.licenta.controller.ReminderViewController;
+import org.stefanapetri.licenta.controller.TranscribingController;
 import org.stefanapetri.licenta.controller.TranscriptionResultController;
-import org.stefanapetri.licenta.model.MemoViewItem; // NEW IMPORT
+import org.stefanapetri.licenta.model.MemoViewItem;
 import org.stefanapetri.licenta.model.TrackedApplication;
 import org.stefanapetri.licenta.service.AudioRecorder;
 
@@ -27,26 +28,35 @@ public class DialogHelper {
             stage.getIcons().add(MainApplication.applicationIcon);
         }
         stage.setAlwaysOnTop(true);
+        stage.toFront();
+        stage.requestFocus();
+    }
+
+    private static void applyDefaultStageSettingsAndShow(Stage stage) {
+        if (MainApplication.applicationIcon != null) {
+            stage.getIcons().add(MainApplication.applicationIcon);
+        }
+        stage.setAlwaysOnTop(true);
         stage.show();
         stage.toFront();
         stage.requestFocus();
     }
 
-    // MODIFIED: Accepts MemoViewItem
+
     public static void showReminderDialog(MemoViewItem memo) {
         try {
             FXMLLoader loader = new FXMLLoader(MainApplication.class.getResource("Reminder.fxml"));
             Parent root = loader.load();
 
             ReminderViewController controller = loader.getController();
-            controller.setMemo(memo); // Pass MemoViewItem
+            controller.setMemo(memo);
 
             Stage stage = new Stage();
             stage.initModality(Modality.APPLICATION_MODAL);
             stage.setTitle("Last Session Reminder");
             stage.setScene(new Scene(root));
 
-            applyDefaultStageSettings(stage);
+            applyDefaultStageSettingsAndShow(stage);
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -83,7 +93,7 @@ public class DialogHelper {
             stage.setTitle("Recording...");
             stage.setScene(new Scene(root));
 
-            applyDefaultStageSettings(stage);
+            applyDefaultStageSettingsAndShow(stage);
 
             return new StageAndController<>(stage, controller);
         } catch (IOException e) {
@@ -103,7 +113,7 @@ public class DialogHelper {
             stage.setTitle("Transcribing...");
             stage.setScene(new Scene(root));
 
-            applyDefaultStageSettings(stage);
+            applyDefaultStageSettingsAndShow(stage);
 
             return stage;
         } catch (IOException e) {
@@ -118,13 +128,14 @@ public class DialogHelper {
         }
     }
 
-    public static void showTranscriptionResultDialog(String transcription, String audioFilePath) {
+    // MODIFIED: Added enablePlayback parameter
+    public static void showTranscriptionResultDialog(String transcription, String audioFilePath, boolean enablePlayback) {
         try {
             FXMLLoader loader = new FXMLLoader(MainApplication.class.getResource("TranscriptionResultView.fxml"));
             Parent root = loader.load();
 
             TranscriptionResultController controller = loader.getController();
-            controller.setContent(transcription, audioFilePath);
+            controller.setContent(transcription, audioFilePath, enablePlayback); // Pass enablePlayback
 
             Stage stage = new Stage();
             stage.initModality(Modality.APPLICATION_MODAL);

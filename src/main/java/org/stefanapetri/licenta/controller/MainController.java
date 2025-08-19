@@ -107,7 +107,6 @@ public class MainController implements Initializable, SystemMonitorListener {
             DateTimeFormatter formatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT);
             return new ReadOnlyStringWrapper(timestamp.toLocalDateTime().format(formatter));
         });
-        // MODIFIED: Use lambda for historyPreviewColumn to access record component
         historyPreviewColumn.setCellValueFactory(cellData -> {
             String fullText = cellData.getValue().transcriptionText();
             String preview = fullText.length() > 50 ? fullText.substring(0, 50) + "..." : fullText;
@@ -133,7 +132,6 @@ public class MainController implements Initializable, SystemMonitorListener {
         );
 
         // Setup search results table columns
-        // MODIFIED: Use lambda for searchAppColumn to access record component
         searchAppColumn.setCellValueFactory(cellData -> new ReadOnlyStringWrapper(cellData.getValue().appName()));
         searchDateColumn.setCellValueFactory(cellData -> {
             Timestamp timestamp = cellData.getValue().createdAt();
@@ -273,7 +271,8 @@ public class MainController implements Initializable, SystemMonitorListener {
                         loadMemoForApp(app);
                         loadHistoricalMemosForApp(app);
                     }
-                    DialogHelper.showTranscriptionResultDialog(transcription, audioFilePath);
+                    // MODIFIED: Pass true for enablePlayback for the *newly recorded* memo
+                    DialogHelper.showTranscriptionResultDialog(transcription, audioFilePath, true);
                 });
             } else {
                 Platform.runLater(() -> DialogHelper.createTopMostAlert(
@@ -412,7 +411,8 @@ public class MainController implements Initializable, SystemMonitorListener {
     private void handleViewHistoricalMemo() {
         MemoViewItem selectedMemo = historicalMemosTableView.getSelectionModel().getSelectedItem();
         if (selectedMemo != null) {
-            DialogHelper.showTranscriptionResultDialog(selectedMemo.transcriptionText(), selectedMemo.audioFilePath());
+            // MODIFIED: Pass false for enablePlayback for historical memos
+            DialogHelper.showTranscriptionResultDialog(selectedMemo.transcriptionText(), selectedMemo.audioFilePath(), false);
         } else {
             DialogHelper.createTopMostAlert(
                     Alert.AlertType.WARNING, "No Memo Selected",
@@ -481,7 +481,8 @@ public class MainController implements Initializable, SystemMonitorListener {
     private void handleViewSearchMemo() {
         MemoViewItem selectedMemo = searchResultsTableView.getSelectionModel().getSelectedItem();
         if (selectedMemo != null) {
-            DialogHelper.showTranscriptionResultDialog(selectedMemo.transcriptionText(), selectedMemo.audioFilePath());
+            // MODIFIED: Pass false for enablePlayback for search results
+            DialogHelper.showTranscriptionResultDialog(selectedMemo.transcriptionText(), selectedMemo.audioFilePath(), false);
         } else {
             DialogHelper.createTopMostAlert(
                     Alert.AlertType.WARNING, "No Memo Selected",

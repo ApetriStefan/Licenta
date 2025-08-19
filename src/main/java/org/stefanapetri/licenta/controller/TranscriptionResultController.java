@@ -4,32 +4,29 @@ import javafx.fxml.FXML;
 import javafx.scene.control.Button;
 import javafx.scene.media.Media;
 import javafx.scene.media.MediaPlayer;
-import javafx.scene.web.WebView; // NEW IMPORT
+import javafx.scene.web.WebView;
 import javafx.stage.Stage;
-import org.stefanapetri.licenta.view.MarkdownConverter; // NEW IMPORT
+import org.stefanapetri.licenta.view.MarkdownConverter;
 
 import java.io.File;
 import java.net.MalformedURLException;
 
 public class TranscriptionResultController {
 
-    @FXML private WebView transcriptionWebView; // MODIFIED: Changed from TextArea to WebView
+    @FXML private WebView transcriptionWebView;
     @FXML private Button playRecordingButton;
     @FXML private Button okButton;
 
     private String audioFilePath;
     private MediaPlayer mediaPlayer;
 
-    public void setContent(String transcription, String audioFilePath) {
-        // MODIFIED: Load HTML content into WebView
+    // MODIFIED: Added enablePlayback parameter
+    public void setContent(String transcription, String audioFilePath, boolean enablePlayback) {
         transcriptionWebView.getEngine().loadContent(MarkdownConverter.toHtml(transcription));
         this.audioFilePath = audioFilePath;
 
-        if (audioFilePath != null && new File(audioFilePath).exists()) {
-            playRecordingButton.setDisable(false);
-        } else {
-            playRecordingButton.setDisable(true);
-        }
+        // The play button is now enabled based on the 'enablePlayback' flag AND file existence
+        playRecordingButton.setDisable(!enablePlayback || audioFilePath == null || !new File(audioFilePath).exists());
     }
 
     @FXML
