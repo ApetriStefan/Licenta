@@ -7,6 +7,7 @@ import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
+import javafx.scene.web.WebView;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import org.stefanapetri.licenta.model.DatabaseManager;
@@ -14,10 +15,11 @@ import org.stefanapetri.licenta.model.Memo;
 import org.stefanapetri.licenta.model.TrackedApplication;
 import org.stefanapetri.licenta.service.*;
 import org.stefanapetri.licenta.view.DialogHelper;
-import org.stefanapetri.licenta.view.StageAndController; // Ensure this is imported
+import org.stefanapetri.licenta.view.MarkdownConverter;
+import org.stefanapetri.licenta.view.StageAndController;
 
 import java.io.File;
-import java.io.IOException; // Re-add IOException import if it was removed
+import java.io.IOException;
 import java.net.URL;
 import java.sql.Timestamp;
 import java.time.Duration;
@@ -27,10 +29,12 @@ import java.util.ResourceBundle;
 
 public class MainController implements Initializable, SystemMonitorListener {
 
-    // (All FXML fields, dependencies, and state variables are unchanged)
+    // --- FXML Fields for Settings Tab ---
     @FXML private CheckBox startupCheckBox;
     @FXML private CheckBox disableRemindersCheckBox;
     @FXML private ChoiceBox<ReminderInterval> reminderIntervalChoiceBox;
+
+    // --- FXML Fields for Main Tab ---
     @FXML private TableView<TrackedApplication> appTableView;
     @FXML private TableColumn<TrackedApplication, String> appNameColumn;
     @FXML private TableColumn<TrackedApplication, String> appPathColumn;
@@ -38,12 +42,20 @@ public class MainController implements Initializable, SystemMonitorListener {
     @FXML private Button updateAppButton;
     @FXML private Button removeAppButton;
     @FXML private TextArea reminderTextArea;
+    @FXML private WebView reminderWebView;
+    @FXML private Button editOrSaveButton;
+    @FXML private Button cancelEditButton;
+
+    // --- Dependencies ---
     private final DatabaseManager dbManager;
     private final SystemMonitor systemMonitor;
     private final PythonBridge pythonBridge;
     private final AudioRecorder audioRecorder;
     private final SettingsManager settingsManager;
     private final StartupManager startupManager;
+
+    // --- State ---
+    private boolean isInEditMode = false;
     private final ObservableList<TrackedApplication> trackedAppsList = FXCollections.observableArrayList();
     private boolean isRecording = false;
     private Memo currentMemo = null;
@@ -59,30 +71,35 @@ public class MainController implements Initializable, SystemMonitorListener {
 
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {
-        // (Main Tab Setup and Settings Tab Setup are unchanged)
+        // Main Tab Setup
         systemMonitor.setListener(this);
         appNameColumn.setCellValueFactory(new PropertyValueFactory<>("appName"));
         appPathColumn.setCellValueFactory(new PropertyValueFactory<>("executablePath"));
         appTableView.setItems(trackedAppsList);
+
         appTableView.getSelectionModel().selectedItemProperty().addListener(
                 (obs, oldSelection, newSelection) -> {
+                    // When selection changes, always revert to view mode
+                    toggleEditMode(false);
                     if (newSelection != null) {
                         loadMemoForApp(newSelection);
                         updateButtonStates(true);
-                        reminderTextArea.setEditable(true);
                     } else {
                         updateButtonStates(false);
                         currentMemo = null;
                         reminderTextArea.clear();
-                        reminderTextArea.setEditable(false);
+                        reminderWebView.getEngine().loadContent(MarkdownConverter.toHtml(""));
                     }
                 }
         );
+
         loadApplicationsFromDB();
         updateButtonStates(false);
-        reminderTextArea.setEditable(false);
+        // Settings Tab Setup
         setupSettingsTab();
     }
+
+    // --- HELPER METHODS ---
 
     private void setupSettingsTab() {
         reminderIntervalChoiceBox.setItems(FXCollections.observableArrayList(ReminderInterval.values()));
@@ -90,11 +107,14 @@ public class MainController implements Initializable, SystemMonitorListener {
         disableRemindersCheckBox.setSelected(settingsManager.areRemindersDisabled());
         int savedIntervalHours = settingsManager.getReminderIntervalHours();
         ReminderInterval.fromHours(savedIntervalHours).ifPresent(reminderIntervalChoiceBox::setValue);
+
         startupCheckBox.selectedProperty().addListener((obs, oldVal, newVal) -> {
             settingsManager.setLaunchOnStartup(newVal);
             if (newVal) startupManager.enableLaunchOnStartup(); else startupManager.disableLaunchOnStartup();
         });
+
         disableRemindersCheckBox.selectedProperty().addListener((obs, oldVal, newVal) -> settingsManager.setDisableReminders(newVal));
+
         reminderIntervalChoiceBox.valueProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal != null) settingsManager.setReminderIntervalHours(newVal.getHours());
         });
@@ -109,21 +129,41 @@ public class MainController implements Initializable, SystemMonitorListener {
     private void loadMemoForApp(TrackedApplication app) {
         Optional<Memo> latestMemo = dbManager.getLatestMemoForApp(app.getAppId());
         this.currentMemo = latestMemo.orElse(null);
-        reminderTextArea.setText(latestMemo.map(Memo::transcriptionText).orElse("No reminder found for this application."));
+        String markdownText = latestMemo.map(Memo::transcriptionText).orElse("No reminder found for this application.");
+
+        // Load content into both components
+        reminderTextArea.setText(markdownText);
+        reminderWebView.getEngine().loadContent(MarkdownConverter.toHtml(markdownText));
     }
 
     private void updateButtonStates(boolean itemSelected) {
         launchAppButton.setDisable(!itemSelected);
         updateAppButton.setDisable(!itemSelected);
         removeAppButton.setDisable(!itemSelected);
+        // Also manage the edit button state
+        editOrSaveButton.setDisable(!itemSelected || currentMemo == null);
     }
 
-    // --- MODIFIED: Simplified startRecordingProcess as DialogHelper handles recorder start ---
+    private void toggleEditMode(boolean isEditing) {
+        isInEditMode = isEditing;
+        reminderTextArea.setVisible(isEditing);
+        reminderWebView.setVisible(!isEditing);
+        cancelEditButton.setVisible(isEditing);
+
+        if (isEditing) {
+            editOrSaveButton.setText("Save Changes");
+            editOrSaveButton.setStyle("-fx-background-color: #28A745;"); // Green for save
+        } else {
+            editOrSaveButton.setText("Edit Reminder");
+            editOrSaveButton.setStyle("-fx-background-color: #FFC107;"); // Yellow for edit
+            editOrSaveButton.setDisable(appTableView.getSelectionModel().getSelectedItem() == null || currentMemo == null);
+        }
+    }
+
     private void startRecordingProcess(TrackedApplication app) {
         isRecording = true;
-        // This file should ideally be stored in a user-specific temp directory
-        String audioFilePath = new File(System.getProperty("java.io.tmpdir"), "temp_memo.wav").getAbsolutePath();
-        // DialogHelper now handles starting the recorder and returns StageAndController
+        String userTempDir = System.getProperty("java.io.tmpdir");
+        String audioFilePath = new File(userTempDir, "temp_memo.wav").getAbsolutePath();
         StageAndController<RecordingController> sac = DialogHelper.showRecordingDialog(app, audioRecorder, audioFilePath);
         if (sac != null) {
             sac.stage.setOnHidden(e -> {
@@ -132,24 +172,18 @@ public class MainController implements Initializable, SystemMonitorListener {
                 transcribeAndSave(app, audioFilePath);
             });
         } else {
-            isRecording = false; // Dialog failed to show or mic unavailable (error handled in DialogHelper)
+            isRecording = false;
         }
     }
 
-
     private void transcribeAndSave(TrackedApplication app, String audioFilePath) {
-        System.out.println("Starting transcription for " + audioFilePath);
-
         Stage transcribingDialog = DialogHelper.showTranscribingDialog();
 
         pythonBridge.transcribeAudio(audioFilePath).thenAccept(transcription -> {
             Platform.runLater(() -> {
-                if (transcribingDialog != null) {
-                    transcribingDialog.close();
-                }
+                if (transcribingDialog != null) transcribingDialog.close();
             });
 
-            System.out.println("Transcription received: " + transcription);
             if (transcription != null && !transcription.startsWith("Error:")) {
                 dbManager.saveMemo(app.getAppId(), transcription, audioFilePath);
                 Platform.runLater(() -> {
@@ -167,9 +201,7 @@ public class MainController implements Initializable, SystemMonitorListener {
         }).exceptionally(ex -> {
             ex.printStackTrace();
             Platform.runLater(() -> {
-                if (transcribingDialog != null) {
-                    transcribingDialog.close();
-                }
+                if (transcribingDialog != null) transcribingDialog.close();
                 DialogHelper.createTopMostAlert(
                         Alert.AlertType.ERROR, "Transcription Error",
                         "An unexpected error occurred during transcription.", ex.getMessage()
@@ -179,8 +211,7 @@ public class MainController implements Initializable, SystemMonitorListener {
         });
     }
 
-
-    // --- BUTTON HANDLER METHODS (UNCHANGED) ---
+    // --- FXML HANDLER METHODS ---
 
     @FXML
     private void handleAddApp() {
@@ -208,7 +239,7 @@ public class MainController implements Initializable, SystemMonitorListener {
             Optional<ButtonType> result = DialogHelper.createTopMostAlert(
                     Alert.AlertType.CONFIRMATION, "Confirm Deletion",
                     "Remove '" + selectedApp.getAppName() + "'?",
-                    "Are you sure you want to remove this application? All associated reminders will be deleted."
+                    "Are you sure? This will delete all associated reminders."
             );
             if (result.isPresent() && result.get() == ButtonType.OK) {
                 dbManager.removeTrackedApplication(selectedApp.getAppId());
@@ -261,24 +292,20 @@ public class MainController implements Initializable, SystemMonitorListener {
     }
 
     @FXML
-    private void handleUpdateReminder() {
-        TrackedApplication selectedApp = appTableView.getSelectionModel().getSelectedItem();
-        if (selectedApp == null || currentMemo == null) {
-            DialogHelper.createTopMostAlert(
-                    Alert.AlertType.WARNING, "Update Failed",
-                    "Cannot update reminder.", "Please select an application that has a reminder to update."
-            );
-            return;
-        }
-        String updatedText = reminderTextArea.getText();
-        int memoId = currentMemo.memoId();
-        Optional<ButtonType> result = DialogHelper.createTopMostAlert(
-                Alert.AlertType.CONFIRMATION, "Confirm Update",
-                "Update the reminder for '" + selectedApp.getAppName() + "'?",
-                "This will permanently overwrite the existing memo with your changes."
-        );
-        if (result.isPresent() && result.get() == ButtonType.OK) {
+    private void handleEditOrSaveReminder() {
+        if (!isInEditMode) {
+            toggleEditMode(true);
+        } else {
+            TrackedApplication selectedApp = appTableView.getSelectionModel().getSelectedItem();
+            if (selectedApp == null || currentMemo == null) return;
+
+            String updatedText = reminderTextArea.getText();
+            int memoId = currentMemo.memoId();
+
             dbManager.updateMemoText(memoId, updatedText);
+            loadMemoForApp(selectedApp);
+            toggleEditMode(false);
+
             DialogHelper.createTopMostAlert(
                     Alert.AlertType.INFORMATION, "Success",
                     "Reminder updated successfully.", null
@@ -286,7 +313,16 @@ public class MainController implements Initializable, SystemMonitorListener {
         }
     }
 
-    // --- SYSTEM MONITOR LISTENER METHODS (UNCHANGED) ---
+    @FXML
+    private void handleCancelEdit() {
+        TrackedApplication selectedApp = appTableView.getSelectionModel().getSelectedItem();
+        if (selectedApp != null) {
+            loadMemoForApp(selectedApp);
+        }
+        toggleEditMode(false);
+    }
+
+    // --- SYSTEM MONITOR LISTENER METHODS ---
 
     @Override
     public void onMonitoredAppClosed(TrackedApplication app) {
@@ -310,11 +346,13 @@ public class MainController implements Initializable, SystemMonitorListener {
         Platform.runLater(() -> {
             Optional<Memo> memoOpt = dbManager.getLatestMemoForApp(app.getAppId());
             Optional<Timestamp> lastClosedOpt = dbManager.getLastClosedTimestamp(app.getAppId());
+
             memoOpt.ifPresent(memo -> {
                 int intervalHours = settingsManager.getReminderIntervalHours();
                 boolean shouldShowPopup = (intervalHours == -1) || lastClosedOpt.map(ts ->
                         Duration.between(ts.toInstant(), Instant.now()).toHours() >= intervalHours
                 ).orElse(true);
+
                 if (shouldShowPopup) {
                     Optional<ButtonType> response = DialogHelper.createTopMostAlert(
                             Alert.AlertType.CONFIRMATION, "View Reminder",
@@ -330,7 +368,7 @@ public class MainController implements Initializable, SystemMonitorListener {
     }
 }
 
-// Helper Enum for the ChoiceBox (unchanged)
+// Helper Enum for the ChoiceBox
 enum ReminderInterval {
     ALWAYS("Always", -1),
     ONE_HOUR("After 1 Hour", 1),
