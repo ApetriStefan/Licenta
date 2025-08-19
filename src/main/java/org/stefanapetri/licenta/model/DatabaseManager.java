@@ -15,7 +15,6 @@ public class DatabaseManager {
     private Connection connect() throws SQLException {
         return DriverManager.getConnection(dbUrl, dbUser, dbPassword);
     }
-
     public List<TrackedApplication> getAllTrackedApplications() {
         List<TrackedApplication> apps = new ArrayList<>();
         String sql = "SELECT app_id, app_name, executable_path FROM tracked_applications ORDER BY app_name";
@@ -33,7 +32,6 @@ public class DatabaseManager {
             }
         } catch (SQLException e) {
             System.err.println("Error fetching tracked applications: " + e.getMessage());
-            // In a real app, you'd show an error dialog to the user.
         }
         return apps;
     }
@@ -47,6 +45,7 @@ public class DatabaseManager {
             ResultSet rs = pstmt.executeQuery();
             if (rs.next()) {
                 int newId = rs.getInt(1);
+                System.out.println("Successfully added application: " + appName);
                 return Optional.of(new TrackedApplication(newId, appName, executablePath));
             }
         } catch (SQLException e) {
@@ -56,13 +55,52 @@ public class DatabaseManager {
     }
 
     public void removeTrackedApplication(int appId) {
-        String sql = "DELETE FROM tracked_applications WHERE app_id = ?";
-        try (Connection conn = connect();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setInt(1, appId);
-            pstmt.executeUpdate();
+        String deleteMemosSql = "DELETE FROM memos WHERE app_id = ?";
+        String deleteAppSql = "DELETE FROM tracked_applications WHERE app_id = ?";
+        Connection conn = null;
+        try {
+            conn = connect();
+            // Start transaction
+            conn.setAutoCommit(false);
+
+            System.out.println("Starting transaction to delete application ID: " + appId);
+
+            // First, delete associated memos
+            try (PreparedStatement pstmtMemos = conn.prepareStatement(deleteMemosSql)) {
+                pstmtMemos.setInt(1, appId);
+                int memosDeleted = pstmtMemos.executeUpdate();
+                System.out.println("Deleted " + memosDeleted + " associated memos.");
+            }
+
+            // Then, delete the application itself
+            try (PreparedStatement pstmtApp = conn.prepareStatement(deleteAppSql)) {
+                pstmtApp.setInt(1, appId);
+                int appsDeleted = pstmtApp.executeUpdate();
+                System.out.println("Deleted " + appsDeleted + " application entry.");
+            }
+
+            // Commit transaction
+            conn.commit();
+            System.out.println("Transaction committed successfully.");
+
         } catch (SQLException e) {
-            System.err.println("Error removing application: " + e.getMessage());
+            System.err.println("Error removing application, rolling back transaction: " + e.getMessage());
+            if (conn != null) {
+                try {
+                    conn.rollback();
+                } catch (SQLException ex) {
+                    System.err.println("Error rolling back transaction: " + ex.getMessage());
+                }
+            }
+        } finally {
+            if (conn != null) {
+                try {
+                    conn.setAutoCommit(true); // Reset auto-commit state
+                    conn.close();
+                } catch (SQLException ex) {
+                    System.err.println("Error closing connection: " + ex.getMessage());
+                }
+            }
         }
     }
 
@@ -74,6 +112,7 @@ public class DatabaseManager {
             pstmt.setString(2, transcription);
             pstmt.setString(3, audioFilePath); // Can be null if you don't store the file path
             pstmt.executeUpdate();
+            System.out.println("Memo saved for app ID: " + appId);
         } catch (SQLException e) {
             System.err.println("Error saving memo: " + e.getMessage());
         }
@@ -91,10 +130,10 @@ public class DatabaseManager {
             pstmt.setString(1, newText);
             pstmt.setInt(2, memoId);
             pstmt.executeUpdate();
+            System.out.println("Updated text for memo ID: " + memoId);
 
         } catch (SQLException e) {
             System.err.println("Error updating memo text: " + e.getMessage());
-            // In a real application, you might show an error dialog here.
         }
     }
     public Optional<MemoViewItem> getLatestMemoForApp(int appId) {
@@ -122,7 +161,6 @@ public class DatabaseManager {
         return Optional.empty();
     }
 
-    // --- MODIFIED: Return type changed to List<MemoViewItem> ---
     public List<MemoViewItem> getAllMemosForApp(int appId) {
         List<MemoViewItem> memos = new ArrayList<>();
         String sql = "SELECT m.*, ta.app_name FROM memos m " +
@@ -168,6 +206,7 @@ public class DatabaseManager {
             pstmt.setString(1, newPath);
             pstmt.setInt(2, appId);
             pstmt.executeUpdate();
+            System.out.println("Updated path for app ID: " + appId);
 
         } catch (SQLException e) {
             System.err.println("Error updating application path: " + e.getMessage());
@@ -200,12 +239,6 @@ public class DatabaseManager {
         return Optional.empty();
     }
 
-    // --- NEW METHOD: Search Memos ---
-    /**
-     * Searches memos by their transcription text and/or associated application name.
-     * @param query The search string.
-     * @return A list of MemoViewItem objects matching the query.
-     */
     public List<MemoViewItem> searchMemos(String query) {
         List<MemoViewItem> results = new ArrayList<>();
         String searchQuery = "%" + query.toLowerCase() + "%"; // Case-insensitive search

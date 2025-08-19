@@ -49,6 +49,7 @@ public class MainController implements Initializable, SystemMonitorListener {
     @FXML private WebView reminderWebView;
     @FXML private Button editOrSaveButton;
     @FXML private Button cancelEditButton;
+    @FXML private TextArea consoleTextArea; // <-- NEW CONSOLE FIELD
 
     // FXML fields for historical reminders
     @FXML private TableView<MemoViewItem> historicalMemosTableView;
@@ -95,6 +96,9 @@ public class MainController implements Initializable, SystemMonitorListener {
 
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {
+        // --- NEW: Initialize Console Logging ---
+        ConsoleManager.redirectSystemStreams(consoleTextArea);
+
         // Main Tab Setup
         systemMonitor.setListener(this);
         appNameColumn.setCellValueFactory(new PropertyValueFactory<>("appName"));
@@ -271,7 +275,6 @@ public class MainController implements Initializable, SystemMonitorListener {
                         loadMemoForApp(app);
                         loadHistoricalMemosForApp(app);
                     }
-                    // MODIFIED: Pass true for enablePlayback for the *newly recorded* memo
                     DialogHelper.showTranscriptionResultDialog(transcription, audioFilePath, true);
                 });
             } else {
@@ -281,6 +284,7 @@ public class MainController implements Initializable, SystemMonitorListener {
                 ));
             }
         }).exceptionally(ex -> {
+            System.err.println("Exception in transcription future: " + ex.getMessage());
             ex.printStackTrace();
             Platform.runLater(() -> {
                 if (transcribingDialog != null) transcribingDialog.close();
@@ -335,8 +339,10 @@ public class MainController implements Initializable, SystemMonitorListener {
         TrackedApplication selectedApp = appTableView.getSelectionModel().getSelectedItem();
         if (selectedApp != null) {
             try {
+                System.out.println("Launching application: " + selectedApp.getExecutablePath());
                 new ProcessBuilder(selectedApp.getExecutablePath()).start();
             } catch (Exception e) {
+                System.err.println("Failed to launch application: " + e.getMessage());
                 DialogHelper.createTopMostAlert(
                         Alert.AlertType.ERROR, "Launch Error",
                         "Failed to launch application.", e.getMessage()
@@ -411,7 +417,6 @@ public class MainController implements Initializable, SystemMonitorListener {
     private void handleViewHistoricalMemo() {
         MemoViewItem selectedMemo = historicalMemosTableView.getSelectionModel().getSelectedItem();
         if (selectedMemo != null) {
-            // MODIFIED: Pass false for enablePlayback for historical memos
             DialogHelper.showTranscriptionResultDialog(selectedMemo.transcriptionText(), selectedMemo.audioFilePath(), false);
         } else {
             DialogHelper.createTopMostAlert(
@@ -481,7 +486,6 @@ public class MainController implements Initializable, SystemMonitorListener {
     private void handleViewSearchMemo() {
         MemoViewItem selectedMemo = searchResultsTableView.getSelectionModel().getSelectedItem();
         if (selectedMemo != null) {
-            // MODIFIED: Pass false for enablePlayback for search results
             DialogHelper.showTranscriptionResultDialog(selectedMemo.transcriptionText(), selectedMemo.audioFilePath(), false);
         } else {
             DialogHelper.createTopMostAlert(
