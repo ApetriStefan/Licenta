@@ -1,0 +1,133 @@
+.root {
+    -fx-base: #2B2B2B; /* Base color for controls */
+    -fx-background: #2B2B2B; /* Main background color */
+    -fx-control-inner-background: #3C3F41; /* Background of text fields, lists, etc. */
+    -fx-control-inner-background-alt: derive(-fx-control-inner-background, -2%);
+    -fx-text-base-color: #BBBBBB; /* Base text color */
+    -fx-accent: #0D47A1; /* Accent color for focus, selection */
+    -fx-focus-color: -fx-accent;
+}
+
+/* --- Text and Labels --- */
+.label, .text, .check-box .text {
+    -fx-text-fill: -fx-text-base-color;
+}
+
+/* --- Buttons --- */
+.button {
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+}
+
+/* Specific button colors using style classes */
+.success-button {
+    -fx-background-color: #28A745;
+}
+.success-button:hover {
+    -fx-background-color: derive(#28A745, 20%);
+}
+
+.warning-button {
+    -fx-background-color: #FFC107;
+    -fx-text-fill: #212121; /* Darker text for better contrast on yellow */
+}
+.warning-button:hover {
+    -fx-background-color: derive(#FFC107, 20%);
+}
+
+.danger-button {
+    -fx-background-color: #DC3545;
+}
+.danger-button:hover {
+    -fx-background-color: derive(#DC3545, 20%);
+}
+
+.info-button {
+    -fx-background-color: #6C757D;
+}
+.info-button:hover {
+    -fx-background-color: derive(#6C757D, 20%);
+}
+
+
+/* --- Table View --- */
+.table-view {
+    -fx-background-color: -fx-control-inner-background;
+    -fx-border-color: #555555;
+}
+
+.table-view .column-header-background {
+    -fx-background-color: #313335;
+}
+
+.table-view .column-header, .table-view .filler {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent #555555 transparent transparent;
+    -fx-size: 40;
+}
+
+.table-view .column-header .label {
+    -fx-text-fill: -fx-text-base-color;
+    -fx-font-weight: bold;
+}
+
+.table-view .table-cell {
+    -fx-border-color: transparent #555555 transparent transparent;
+    -fx-text-fill: -fx-text-base-color;
+}
+
+.table-row-cell {
+    -fx-background-color: -fx-control-inner-background;
+    -fx-border-color: #555555;
+    -fx-border-width: 0 0 1 0;
+}
+
+.table-row-cell:odd {
+    -fx-background-color: -fx-control-inner-background-alt;
+}
+
+.table-row-cell:selected {
+    -fx-background-color: -fx-accent;
+    -fx-text-fill: white;
+}
+
+.table-row-cell:selected .text {
+    -fx-fill: white;
+}
+
+/* --- Tabs --- */
+.tab-pane .tab-header-area .tab-header-background {
+    -fx-background-color: #2B2B2B;
+}
+.tab-pane .tab {
+    -fx-background-color: #3C3F41;
+    -fx-background-insets: 0 1 0 1,1 2 1 2,2 3 2 3;
+}
+.tab-pane .tab:selected {
+    -fx-background-color: -fx-control-inner-background;
+}
+.tab-pane .tab .tab-label {
+    -fx-text-fill: -fx-text-base-color;
+}
+
+/* --- Input Controls --- */
+.text-field, .text-area, .choice-box {
+    -fx-background-color: #3C3F41;
+    -fx-text-fill: -fx-text-base-color;
+    -fx-border-color: #555555;
+    -fx-border-radius: 3;
+}
+.text-area .content {
+    -fx-background-color: -fx-control-inner-background;
+}
+
+.choice-box .context-menu {
+    -fx-background-color: -fx-base;
+}
+
+/* --- Split Pane --- */
+.split-pane-divider {
+    -fx-background-color: #555555;
+    -fx-padding: 0.7;
+}

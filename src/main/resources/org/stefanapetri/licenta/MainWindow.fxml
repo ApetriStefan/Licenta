@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <?import javafx.geometry.Insets?>
-<?import javafx.scene.Cursor?>
 <?import javafx.scene.control.Button?>
 <?import javafx.scene.control.CheckBox?>
 <?import javafx.scene.control.ChoiceBox?>
@@ -22,8 +21,7 @@
 <?import javafx.scene.text.Text?>
 <?import javafx.scene.web.WebView?>
 
-<!-- The fx:controller attribute has been restored here -->
-<TabPane fx:controller="org.stefanapetri.licenta.controller.MainController" maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" minHeight="-Infinity" minWidth="-Infinity" tabClosingPolicy="UNAVAILABLE" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1">
+<TabPane maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" minHeight="-Infinity" minWidth="-Infinity" tabClosingPolicy="UNAVAILABLE" xmlns="http://javafx.com/javafx/24.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.stefanapetri.licenta.controller.MainController">
     <tabs>
         <Tab text="Tracked Applications">
             <content>
@@ -42,25 +40,13 @@
                                 </TableView>
                                 <VBox minWidth="250.0" spacing="10.0" HBox.hgrow="ALWAYS">
                                     <children>
-                                        <Text strokeType="OUTSIDE" strokeWidth="0.0" text="Selection Options:" />
-                                        <Button fx:id="launchAppButton" alignment="CENTER" maxWidth="1.7976931348623157E308" onAction="#handleLaunchApp" style="-fx-background-color: #28A745;" text="Launch Application" textFill="WHITE" wrapText="true">
-                                            <cursor>
-                                                <Cursor fx:constant="HAND" />
-                                            </cursor>
-                                        </Button>
-                                        <Button alignment="CENTER" maxWidth="1.7976931348623157E308" onAction="#handleAddApp" style="-fx-background-color: #28A745;" text="Add Application to Tracker" textFill="WHITE" wrapText="true">
-                                            <cursor>
-                                                <Cursor fx:constant="HAND" />
-                                            </cursor>
-                                        </Button>
-                                        <Button fx:id="updateAppButton" alignment="CENTER" maxWidth="1.7976931348623157E308" onAction="#handleUpdateAppPath" style="-fx-background-color: #6C757D;" text="Update Application Path" textFill="WHITE" wrapText="true">
-                                            <cursor>
-                                                <Cursor fx:constant="HAND" />
-                                            </cursor>
-                                        </Button>
+                                        <Text fill="WHITE" strokeType="OUTSIDE" strokeWidth="0.0" text="Selection Options:" />
+                                        <Button fx:id="launchAppButton" alignment="CENTER" maxWidth="1.7976931348623157E308" onAction="#handleLaunchApp" styleClass="success-button" text="Launch Application" wrapText="true" />
+                                        <Button alignment="CENTER" maxWidth="1.7976931348623157E308" onAction="#handleAddApp" styleClass="success-button" text="Add Application to Tracker" wrapText="true" />
+                                        <Button fx:id="updateAppButton" alignment="CENTER" maxWidth="1.7976931348623157E308" onAction="#handleUpdateAppPath" styleClass="info-button" text="Update Application Path" wrapText="true" />
                                         <VBox VBox.vgrow="ALWAYS">
                                             <children>
-                                                <Text strokeType="OUTSIDE" strokeWidth="0.0" text="Last Session Reminder:" />
+                                                <Text fill="WHITE" strokeType="OUTSIDE" strokeWidth="0.0" text="Last Session Reminder:" />
                                                 <StackPane VBox.vgrow="ALWAYS">
                                                     <children>
                                                         <WebView fx:id="reminderWebView" />
@@ -72,16 +58,12 @@
                                         <HBox alignment="CENTER" spacing="5.0">
                                             <children>
                                                 <Button fx:id="cancelEditButton" maxWidth="1.7976931348623157E308" onAction="#handleCancelEdit" text="Cancel" visible="false" HBox.hgrow="ALWAYS" />
-                                                <Button fx:id="editOrSaveButton" alignment="CENTER" maxWidth="1.7976931348623157E308" onAction="#handleEditOrSaveReminder" style="-fx-background-color: #FFC107;" text="Edit Reminder" wrapText="true" HBox.hgrow="ALWAYS">
-                                                    <cursor>
-                                                        <Cursor fx:constant="HAND" />
-                                                    </cursor>
-                                                </Button>
+                                                <Button fx:id="editOrSaveButton" alignment="CENTER" maxWidth="1.7976931348623157E308" onAction="#handleEditOrSaveReminder" text="Edit Reminder" wrapText="true" HBox.hgrow="ALWAYS" />
                                             </children>
                                         </HBox>
                                         <VBox spacing="5.0" VBox.vgrow="ALWAYS">
                                             <children>
-                                                <Text strokeType="OUTSIDE" strokeWidth="0.0" text="Historical Reminders:" />
+                                                <Text fill="WHITE" strokeType="OUTSIDE" strokeWidth="0.0" text="Historical Reminders:" />
                                                 <TableView fx:id="historicalMemosTableView" minHeight="150.0" minWidth="200" prefHeight="150.0" prefWidth="200.0" VBox.vgrow="ALWAYS">
                                                     <columns>
                                                         <TableColumn fx:id="historyDateColumn" prefWidth="100.0" text="Date" />
@@ -90,25 +72,13 @@
                                                 </TableView>
                                                 <HBox alignment="CENTER" spacing="5.0">
                                                     <children>
-                                                        <Button fx:id="viewHistoricalMemoButton" maxWidth="1.7976931348623157E308" onAction="#handleViewHistoricalMemo" text="View Memo" HBox.hgrow="ALWAYS">
-                                                            <cursor>
-                                                                <Cursor fx:constant="HAND" />
-                                                            </cursor>
-                                                        </Button>
-                                                        <Button fx:id="deleteHistoricalMemoButton" maxWidth="1.7976931348623157E308" onAction="#handleDeleteHistoricalMemo" style="-fx-background-color: #E74C3C;" text="Delete Memo" textFill="WHITE" HBox.hgrow="ALWAYS">
-                                                            <cursor>
-                                                                <Cursor fx:constant="HAND" />
-                                                            </cursor>
-                                                        </Button>
+                                                        <Button fx:id="viewHistoricalMemoButton" maxWidth="1.7976931348623157E308" onAction="#handleViewHistoricalMemo" text="View Memo" HBox.hgrow="ALWAYS" />
+                                                        <Button fx:id="deleteHistoricalMemoButton" maxWidth="1.7976931348623157E308" onAction="#handleDeleteHistoricalMemo" styleClass="danger-button" text="Delete Memo" HBox.hgrow="ALWAYS" />
                                                     </children>
                                                 </HBox>
                                             </children>
                                         </VBox>
-                                        <Button fx:id="removeAppButton" alignment="CENTER" maxWidth="1.7976931348623157E308" onAction="#handleRemoveApp" style="-fx-background-color: #E74C3C;" text="Remove Application from Tracker" textFill="WHITE" wrapText="true">
-                                            <cursor>
-                                                <Cursor fx:constant="HAND" />
-                                            </cursor>
-                                        </Button>
+                                        <Button fx:id="removeAppButton" alignment="CENTER" maxWidth="1.7976931348623157E308" onAction="#handleRemoveApp" styleClass="danger-button" text="Remove Application from Tracker" wrapText="true" />
                                     </children>
                                 </VBox>
                             </children>
@@ -142,11 +112,7 @@
                             <children>
                                 <Label text="Search Query:" />
                                 <TextField fx:id="searchQueryTextField" promptText="Enter keywords for memo or app name" HBox.hgrow="ALWAYS" />
-                                <Button fx:id="searchButton" onAction="#handleSearch" text="Search">
-                                    <cursor>
-                                        <Cursor fx:constant="HAND" />
-                                    </cursor>
-                                </Button>
+                                <Button fx:id="searchButton" onAction="#handleSearch" text="Search" />
                             </children>
                         </HBox>
                         <TableView fx:id="searchResultsTableView" VBox.vgrow="ALWAYS">
@@ -158,16 +124,8 @@
                         </TableView>
                         <HBox alignment="CENTER" spacing="5.0">
                             <children>
-                                <Button fx:id="viewSearchMemoButton" maxWidth="1.7976931348623157E308" onAction="#handleViewSearchMemo" text="View Memo" HBox.hgrow="ALWAYS">
-                                    <cursor>
-                                        <Cursor fx:constant="HAND" />
-                                    </cursor>
-                                </Button>
-                                <Button fx:id="deleteSearchMemoButton" maxWidth="1.7976931348623157E308" onAction="#handleDeleteSearchMemo" style="-fx-background-color: #E74C3C;" text="Delete Memo" textFill="WHITE" HBox.hgrow="ALWAYS">
-                                    <cursor>
-                                        <Cursor fx:constant="HAND" />
-                                    </cursor>
-                                </Button>
+                                <Button fx:id="viewSearchMemoButton" maxWidth="1.7976931348623157E308" onAction="#handleViewSearchMemo" text="View Memo" HBox.hgrow="ALWAYS" />
+                                <Button fx:id="deleteSearchMemoButton" maxWidth="1.7976931348623157E308" onAction="#handleDeleteSearchMemo" styleClass="danger-button" text="Delete Memo" HBox.hgrow="ALWAYS" />
                             </children>
                         </HBox>
                     </children>

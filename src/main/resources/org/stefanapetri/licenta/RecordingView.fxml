@@ -14,10 +14,9 @@
                 <Font name="System Bold" size="14.0" />
             </font>
         </Label>
-        <!-- NEW: Replaced ProgressIndicator with a Canvas. VBox.vgrow makes it fill available space. -->
         <Canvas fx:id="waveformCanvas" height="120.0" width="420.0" VBox.vgrow="ALWAYS" />
         <Label text="Recording in progress... Click Stop to finish." />
-        <Button fx:id="stopButton" mnemonicParsing="false" onAction="#handleStop" prefHeight="30.0" prefWidth="80.0" style="-fx-background-color: #DC3545;" text="Stop" textFill="WHITE" />
+        <Button fx:id="stopButton" mnemonicParsing="false" onAction="#handleStop" prefHeight="30.0" prefWidth="80.0" styleClass="danger-button" text="Stop" />
     </children>
     <padding>
         <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />

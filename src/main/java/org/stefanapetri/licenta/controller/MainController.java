@@ -49,7 +49,7 @@ public class MainController implements Initializable, SystemMonitorListener {
     @FXML private WebView reminderWebView;
     @FXML private Button editOrSaveButton;
     @FXML private Button cancelEditButton;
-    @FXML private TextArea consoleTextArea; // <-- NEW CONSOLE FIELD
+    @FXML private TextArea consoleTextArea;
 
     // FXML fields for historical reminders
     @FXML private TableView<MemoViewItem> historicalMemosTableView;
@@ -96,16 +96,13 @@ public class MainController implements Initializable, SystemMonitorListener {
 
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {
-        // --- NEW: Initialize Console Logging ---
         ConsoleManager.redirectSystemStreams(consoleTextArea);
 
-        // Main Tab Setup
         systemMonitor.setListener(this);
         appNameColumn.setCellValueFactory(new PropertyValueFactory<>("appName"));
         appPathColumn.setCellValueFactory(new PropertyValueFactory<>("executablePath"));
         appTableView.setItems(trackedAppsList);
 
-        // Setup historical memos table columns
         historyDateColumn.setCellValueFactory(cellData -> {
             Timestamp timestamp = cellData.getValue().createdAt();
             DateTimeFormatter formatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT);
@@ -135,7 +132,6 @@ public class MainController implements Initializable, SystemMonitorListener {
                 }
         );
 
-        // Setup search results table columns
         searchAppColumn.setCellValueFactory(cellData -> new ReadOnlyStringWrapper(cellData.getValue().appName()));
         searchDateColumn.setCellValueFactory(cellData -> {
             Timestamp timestamp = cellData.getValue().createdAt();
@@ -160,8 +156,6 @@ public class MainController implements Initializable, SystemMonitorListener {
         updateButtonStates(false);
         setupSettingsTab();
     }
-
-    // --- HELPER METHODS ---
 
     private void setupSettingsTab() {
         reminderIntervalChoiceBox.setItems(FXCollections.observableArrayList(ReminderInterval.values()));
@@ -232,12 +226,14 @@ public class MainController implements Initializable, SystemMonitorListener {
         reminderWebView.setVisible(!isEditing);
         cancelEditButton.setVisible(isEditing);
 
+        // --- MODIFIED: Use style classes instead of inline styles ---
+        editOrSaveButton.getStyleClass().removeAll("warning-button", "success-button");
         if (isEditing) {
             editOrSaveButton.setText("Save Changes");
-            editOrSaveButton.setStyle("-fx-background-color: #28A745;");
+            editOrSaveButton.getStyleClass().add("success-button");
         } else {
             editOrSaveButton.setText("Edit Reminder");
-            editOrSaveButton.setStyle("-fx-background-color: #FFC107;");
+            editOrSaveButton.getStyleClass().add("warning-button");
             editOrSaveButton.setDisable(appTableView.getSelectionModel().getSelectedItem() == null || currentMemo == null);
         }
     }
@@ -297,8 +293,6 @@ public class MainController implements Initializable, SystemMonitorListener {
         });
     }
 
-    // --- FXML HANDLER METHODS ---
-
     @FXML
     private void handleAddApp() {
         FileChooser fileChooser = new FileChooser();
@@ -325,7 +319,7 @@ public class MainController implements Initializable, SystemMonitorListener {
             Optional<ButtonType> result = DialogHelper.createTopMostAlert(
                     Alert.AlertType.CONFIRMATION, "Confirm Deletion",
                     "Remove '" + selectedApp.getAppName() + "'?",
-                    "Are you sure? This will delete all associated reminders."
+                    "Are you sure? This will delete the application and all of its reminders."
             );
             if (result.isPresent() && result.get() == ButtonType.OK) {
                 dbManager.removeTrackedApplication(selectedApp.getAppId());
@@ -457,8 +451,6 @@ public class MainController implements Initializable, SystemMonitorListener {
         }
     }
 
-    // --- Search Tab Handlers ---
-
     @FXML
     private void handleSearch() {
         String query = searchQueryTextField.getText();
@@ -527,8 +519,6 @@ public class MainController implements Initializable, SystemMonitorListener {
     }
 
 
-    // --- SYSTEM MONITOR LISTENER METHODS ---
-
     @Override
     public void onMonitoredAppClosed(TrackedApplication app) {
         dbManager.updateLastClosedTimestamp(app.getAppId());
@@ -573,7 +563,6 @@ public class MainController implements Initializable, SystemMonitorListener {
     }
 }
 
-// Helper Enum for the ChoiceBox (unchanged)
 enum ReminderInterval {
     ALWAYS("Always", -1),
     ONE_HOUR("After 1 Hour", 1),

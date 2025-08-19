@@ -1,3 +1,4 @@
+// src\main\java\org\stefanapetri\licenta\MainApplication.java
 package org.stefanapetri.licenta;
 
 import javafx.application.Application;
@@ -21,27 +22,22 @@ public class MainApplication extends Application {
     private Stage primaryStage;
     private TrayIcon trayIcon;
 
-    // --- NEW: Static field to hold the application icon ---
     public static Image applicationIcon;
 
     @Override
     public void start(Stage stage) throws IOException {
         primaryStage = stage;
 
-        // IMPORTANT: Prevent implicit exit when the last JavaFX window is closed.
         Platform.setImplicitExit(false);
 
-        // --- NEW: Load the application icon once and store it ---
         URL iconUrl = MainApplication.class.getResource("app_icon.png");
         if (iconUrl != null) {
             applicationIcon = new Image(iconUrl.toExternalForm());
-            // Set for the primary stage
             primaryStage.getIcons().add(applicationIcon);
         } else {
             System.err.println("Warning: Application icon 'app_icon.png' not found in resources. Cannot set window icons.");
-            applicationIcon = null; // Ensure it's null if not found
+            applicationIcon = null;
         }
-        // --- END NEW ---
 
         DatabaseManager dbManager = new DatabaseManager();
         systemMonitor = new SystemMonitor();
@@ -53,6 +49,11 @@ public class MainApplication extends Application {
         fxmlLoader.setControllerFactory(param -> mainController);
 
         Scene scene = new Scene(fxmlLoader.load(), 974, 591);
+
+        // --- NEW: Apply the stylesheet to the scene ---
+        String css = this.getClass().getResource("styles.css").toExternalForm();
+        scene.getStylesheets().add(css);
+
         primaryStage.setTitle("Application Activity Tracker");
         primaryStage.setScene(scene);
 
@@ -62,9 +63,7 @@ public class MainApplication extends Application {
         });
 
         createTrayIcon();
-
         primaryStage.show();
-
         systemMonitor.start();
     }
 
@@ -76,22 +75,18 @@ public class MainApplication extends Application {
 
         SystemTray tray = SystemTray.getSystemTray();
 
-        // --- MODIFIED: Use the loaded applicationIcon directly ---
         java.awt.Image image = null;
         if (applicationIcon != null) {
-            // Convert JavaFX Image to AWT Image for TrayIcon
             image = javafx.embed.swing.SwingFXUtils.fromFXImage(applicationIcon, null);
         } else {
-            // Fallback if icon not found (should be handled by the warning above)
             URL fallbackUrl = MainApplication.class.getResource("app_icon.png");
             if (fallbackUrl != null) {
                 image = new javax.swing.ImageIcon(fallbackUrl).getImage();
             } else {
                 System.err.println("Error: Fallback icon not found for TrayIcon.");
-                return; // Cannot create TrayIcon without an image
+                return;
             }
         }
-        // --- END MODIFIED ---
 
 
         PopupMenu popup = new PopupMenu();
