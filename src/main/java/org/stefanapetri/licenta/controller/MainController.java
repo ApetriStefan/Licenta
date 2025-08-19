@@ -1,3 +1,4 @@
+// src\main\java\org\stefanapetri\licenta\controller\MainController.java
 package org.stefanapetri.licenta.controller;
 
 import javafx.application.Platform;
@@ -8,6 +9,8 @@ import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
+import javafx.scene.input.KeyCode; // NEW IMPORT
+import javafx.scene.input.KeyEvent; // NEW IMPORT
 import javafx.scene.web.WebView;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
@@ -40,8 +43,8 @@ public class MainController implements Initializable, SystemMonitorListener {
     @FXML private ChoiceBox<ReminderInterval> reminderIntervalChoiceBox;
     // --- Gemini API Settings FXML Fields ---
     @FXML private CheckBox enableGeminiProcessingCheckBox;
-    @FXML private PasswordField geminiApiKeyPasswordField; // MODIFIED: Changed to PasswordField
-    @FXML private Button saveGeminiApiKeyButton; // NEW
+    @FXML private PasswordField geminiApiKeyPasswordField;
+    @FXML private Button saveGeminiApiKeyButton;
     // --- END NEW ---
 
     // --- FXML Fields for Main Tab ---
@@ -164,6 +167,14 @@ public class MainController implements Initializable, SystemMonitorListener {
         );
         updateSearchButtonStates(false);
 
+        // --- NEW: Add Enter key listener to search query text field ---
+        searchQueryTextField.setOnKeyPressed(event -> {
+            if (event.getCode() == KeyCode.ENTER) {
+                handleSearch();
+            }
+        });
+        // --- END NEW ---
+
         loadApplicationsFromDB();
         updateButtonStates(false);
         setupSettingsTab();
@@ -210,13 +221,9 @@ public class MainController implements Initializable, SystemMonitorListener {
                 geminiApiKeyPasswordField.setText(settingsManager.getGeminiApiKey());
             }
         });
-        // The API key is now explicitly saved via the button, not on every text change.
-        // The textProperty listener is removed to avoid frequent preference writes.
-        // It's still used by the save button's disableProperty, which is fine.
-        // --- END MODIFIED ---
     }
 
-    // --- NEW: Handle Save Gemini API Key Button Action ---
+    // --- Handle Save Gemini API Key Button Action ---
     @FXML
     private void handleSaveGeminiApiKey() {
         String apiKey = geminiApiKeyPasswordField.getText();
@@ -318,7 +325,7 @@ public class MainController implements Initializable, SystemMonitorListener {
         Stage transcribingDialog = DialogHelper.showTranscribingDialog();
 
         boolean enableGemini = settingsManager.isGeminiProcessingEnabled();
-        String geminiApiKey = settingsManager.getGeminiApiKey(); // Retrieve saved key
+        String geminiApiKey = settingsManager.getGeminiApiKey();
 
         pythonBridge.transcribeAudio(audioFilePath, enableGemini, geminiApiKey).thenAccept(transcription -> {
             Platform.runLater(() -> {
