@@ -50,7 +50,7 @@ def transcribe_audio(file_path):
         4.  **Analysis (Implicit Actions):** Identify any explicit or implied action items or next steps.
         5.  **Formatting:** Present your findings clearly using bullet points. Start with a main summary point if applicable, then detail specific activities/tasks.
 
-        Example Output Format (-titles can be in any language, as specified before):
+        Example Output Format (-titles can be in any language, as specified before, and some sections can also be missing if user hasn't specified anything fitting):
         - Brief summary of the session.
         - Completed:
             - [Task 1 completed]
