@@ -171,4 +171,48 @@ public class DatabaseManager {
         return Optional.empty();
     }
 
+    /**
+     * Retrieves all memos associated with a specific application, ordered by creation date (newest first).
+     * @param appId The ID of the application.
+     * @return A list of Memo objects. Returns an empty list if no memos are found.
+     */
+    public List<Memo> getAllMemosForApp(int appId) {
+        List<Memo> memos = new ArrayList<>();
+        // Note: The original getLatestMemoForApp was LIMIT 1, this one gets all.
+        String sql = "SELECT * FROM memos WHERE app_id = ? ORDER BY created_at DESC";
+        try (Connection conn = connect();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, appId);
+            ResultSet rs = pstmt.executeQuery();
+            while (rs.next()) {
+                memos.add(new Memo(
+                        rs.getInt("memo_id"),
+                        rs.getInt("app_id"),
+                        rs.getString("transcription_text"),
+                        rs.getString("audio_file_path"),
+                        rs.getTimestamp("created_at")
+                ));
+            }
+        } catch (SQLException e) {
+            System.err.println("Error fetching all memos for app: " + e.getMessage());
+        }
+        return memos;
+    }
+
+    /**
+     * Deletes a specific memo from the database.
+     * @param memoId The ID of the memo to delete.
+     */
+    public void deleteMemo(int memoId) {
+        String sql = "DELETE FROM memos WHERE memo_id = ?";
+        try (Connection conn = connect();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, memoId);
+            pstmt.executeUpdate();
+            System.out.println("Memo with ID " + memoId + " deleted successfully.");
+        } catch (SQLException e) {
+            System.err.println("Error deleting memo: " + e.getMessage());
+        }
+    }
+
 }

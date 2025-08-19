@@ -23,21 +23,18 @@
     <tabs>
         <Tab text="Tracked Applications">
             <content>
-                <!-- MODIFIED: Replaced layout with HBox for a fixed-left, growing-right column design -->
                 <HBox alignment="CENTER_LEFT" prefHeight="100.0" prefWidth="200.0" spacing="10.0">
                     <padding>
                         <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
                     </padding>
                     <children>
-                        <!-- 1. The TableView has a fixed preferred width -->
-                        <TableView fx:id="appTableView" prefWidth="550.0" minWidth="550">
+                        <TableView fx:id="appTableView" prefWidth="550.0" minWidth="550.0">
                             <columns>
                                 <TableColumn fx:id="appNameColumn" prefWidth="200.0" text="Application Name" />
                                 <TableColumn fx:id="appPathColumn" prefWidth="349.0" text="Path" />
                             </columns>
                         </TableView>
 
-                        <!-- 2. The VBox menu is told to ALWAYS grow horizontally -->
                         <VBox minWidth="250.0" spacing="10.0" HBox.hgrow="ALWAYS">
                             <children>
                                 <Text strokeType="OUTSIDE" strokeWidth="0.0" text="Selection Options:" />
@@ -57,7 +54,7 @@
                                     </cursor>
                                 </Button>
 
-                                <!-- This VBox will grow vertically to fill the available space -->
+                                <!-- Last Session Reminder Section (remains same) -->
                                 <VBox VBox.vgrow="ALWAYS">
                                     <children>
                                         <Text strokeType="OUTSIDE" strokeWidth="0.0" text="Last Session Reminder:" />
@@ -80,6 +77,34 @@
                                         </Button>
                                     </children>
                                 </HBox>
+
+                                <!-- NEW: Historical Reminders Section -->
+                                <VBox VBox.vgrow="ALWAYS" spacing="5.0">
+                                    <children>
+                                        <Text strokeType="OUTSIDE" strokeWidth="0.0" text="Historical Reminders:" />
+                                        <TableView fx:id="historicalMemosTableView" minHeight="200" prefHeight="200.0" prefWidth="200.0" VBox.vgrow="ALWAYS">
+                                            <columns>
+                                                <TableColumn fx:id="historyDateColumn" prefWidth="100.0" text="Date" />
+                                                <TableColumn fx:id="historyPreviewColumn" minWidth="300" prefWidth="300.0" text="Preview"/>
+                                            </columns>
+                                        </TableView>
+                                        <HBox alignment="CENTER" spacing="5.0">
+                                            <children>
+                                                <Button fx:id="viewHistoricalMemoButton" onAction="#handleViewHistoricalMemo" text="View Memo" HBox.hgrow="ALWAYS" maxWidth="1.7976931348623157E308">
+                                                    <cursor>
+                                                        <Cursor fx:constant="HAND" />
+                                                    </cursor>
+                                                </Button>
+                                                <Button fx:id="deleteHistoricalMemoButton" onAction="#handleDeleteHistoricalMemo" text="Delete Memo" HBox.hgrow="ALWAYS" maxWidth="1.7976931348623157E308" style="-fx-background-color: #E74C3C;" textFill="WHITE">
+                                                    <cursor>
+                                                        <Cursor fx:constant="HAND" />
+                                                    </cursor>
+                                                </Button>
+                                            </children>
+                                        </HBox>
+                                    </children>
+                                </VBox>
+                                <!-- End Historical Reminders Section -->
 
                                 <Button fx:id="removeAppButton" onAction="#handleRemoveApp" alignment="CENTER" maxWidth="1.7976931348623157E308" style="-fx-background-color: #E74C3C;" text="Remove Application from Tracker" textFill="WHITE" wrapText="true">
                                     <cursor>
