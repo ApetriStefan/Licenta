@@ -191,3 +191,32 @@
 .check-box:selected .box {
     -fx-background-color: -fx-control-inner-background;
 }
+.text-area, .text-field, .choice-box, .password-field { /* MODIFIED: Added .password-field */
+    -fx-background-color: -fx-control-inner-background;
+    -fx-text-fill: #DDDDDD;
+    -fx-prompt-text-fill: #999999;
+    -fx-highlight-fill: -fx-focus-color; /* Ensures selected text is visible */
+    -fx-highlight-text-fill: white;
+    -fx-control-inner-background-alt: derive(-fx-control-inner-background, 5%); /* For alternate row colors in controls like TextArea */
+}
+
+/* Specific styling for text fields and password fields */
+.text-field, .password-field { /* MODIFIED: Added .password-field */
+    -fx-background-color: -fx-control-inner-background;
+    -fx-text-fill: #DDDDDD;
+    -fx-prompt-text-fill: #999999;
+    -fx-border-color: #555; /* Subtle border for definition */
+    -fx-border-radius: 4;
+    -fx-padding: 5;
+}
+
+.text-field:focused, .password-field:focused { /* MODIFIED: Added .password-field */
+    -fx-border-color: -fx-focus-color;
+    -fx-effect: dropshadow(gaussian, -fx-focus-color, 5, 0.0, 0.0, 0.0);
+}
+
+.text-field:disabled, .password-field:disabled { /* MODIFIED: Added .password-field */
+    -fx-opacity: 0.6; /* Make disabled fields appear faded */
+    -fx-background-color: derive(-fx-control-inner-background, -5%); /* Slightly darker when disabled */
+    -fx-text-fill: #888888;
+}

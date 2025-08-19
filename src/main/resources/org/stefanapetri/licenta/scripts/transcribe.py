@@ -1,24 +1,13 @@
 import sys
 import os
 from faster_whisper import WhisperModel
-import google.generativeai as genai # NEW: Import Gemini library
-
+import google.generativeai as genai
 
 # Ensure UTF-8 output on all streams
 sys.stdout.reconfigure(encoding='utf-8')
 sys.stderr.reconfigure(encoding='utf-8')
 
-# --- NEW: Configure Gemini API ---
-# This will try to get the API key from the GOOGLE_API_KEY environment variable.
-# DO NOT hardcode your API key here!
-API_KEY = os.getenv("GOOGLE_API_KEY")
-if not API_KEY:
-    print("Error: GOOGLE_API_KEY environment variable not set.", file=sys.stderr)
-    sys.exit(1) # Exit if API key is missing
-
-genai.configure(api_key=API_KEY)
-
-def transcribe_audio(file_path):
+def transcribe_audio(file_path, enable_gemini, gemini_api_key):
     compute_type = "int8"
     device = "cpu"
 
@@ -33,74 +22,84 @@ def transcribe_audio(file_path):
     print(f"Detected language '{info.language}' with probability {info.language_probability}", file=sys.stderr)
     print(f"Raw Transcription: {transcription_text}", file=sys.stderr) # For debugging in stderr
 
-    # --- NEW: Call Gemini API ---
-    try:
-        model = genai.GenerativeModel('gemini-2.5-flash') # Use the gemini-flash model for text
+    # --- MODIFIED: Conditional Gemini API Call ---
+    if enable_gemini:
+        if not gemini_api_key:
+            print("Warning: Gemini API processing enabled but no API key provided. Falling back to raw transcription.", file=sys.stderr)
+            print(transcription_text.strip()) # Fallback to raw transcription
+            return
 
-        # Craft a detailed prompt for Gemini
-        prompt = f"""
-        You are an AI assistant designed to help users recall their work sessions. 
-        Given a voice memo transcription about what the user was last doing in an application, 
-        please process it and provide a concise, structured summary. The summary can be in any language,
-        do not translate it. If there are parts of the transcription in another language than the majority of the text, use them as-is and provide a translation in (parantheses).
+        try:
+            genai.configure(api_key=gemini_api_key) # Use the provided API key
+            model = genai.GenerativeModel('gemini-2.5-flash')
 
-        Your task involves the following:
-        1.  **Resume/Identify Activities:** Extract the core activities, tasks, decisions, problems encountered, or progress made. Focus on "what was done" and "what needs to be done next".
-        2.  **Summarize:** Condense the key information into a brief, easy-to-read summary.
-        3.  **Spellcheck & Clarity:** Ensure the language is grammatically correct, professional, and clear, fixing any obvious transcription errors.
-        4.  **Analysis (Implicit Actions):** Identify any explicit or implied action items or next steps.
-        5.  **Formatting:** Present your findings clearly using bullet points. Start with a main summary point if applicable, then detail specific activities/tasks.
+            prompt = f"""
+            You are an AI assistant designed to help users recall their work sessions.
+            Given a voice memo transcription about what the user was last doing in an application,
+            please process it and provide a concise, structured summary. The summary can be in any language,
+            do not translate it. If there are parts of the transcription in another language than the majority of the text, use them as-is and provide a translation in (parantheses).
 
-        Example Output Format:
-        - Brief summary of the session.
-        - Completed:
-            - [Task 1 completed]
-            - [Task 2 completed]
-        - In Progress:
-            - [Task 1 in progress]
-        - Next Steps/Action Items:
-            - [Action item 1] 
-            - [Action item 2]
-        - Notes/Decisions:
-            - [Important note or decision]
+            Your task involves the following:
+            1.  **Resume/Identify Activities:** Extract the core activities, tasks, decisions, problems encountered, or progress made. Focus on "what was done" and "what needs to be done next".
+            2.  **Summarize:** Condense the key information into a brief, easy-to-read summary.
+            3.  **Spellcheck & Clarity:** Ensure the language is grammatically correct, professional, and clear, fixing any obvious transcription errors.
+            4.  **Analysis (Implicit Actions):** Identify any explicit or implied action items or next steps.
+            5.  **Formatting:** Present your findings clearly using bullet points. Start with a main summary point if applicable, then detail specific activities/tasks.
 
-        ---
-        Here is the transcription from the user's voice memo:
-        "{transcription_text}"
-        """
+            Example Output Format:
+            - Brief summary of the session.
+            - Completed:
+                - [Task 1 completed]
+                - [Task 2 completed]
+            - In Progress:
+                - [Task 1 in progress]
+            - Next Steps/Action Items:
+                - [Action item 1]
+                - [Action item 2]
+            - Notes/Decisions:
+                - [Important note or decision]
 
-        # Send the prompt to Gemini
-        gemini_response = model.generate_content(prompt)
+            ---
+            Here is the transcription from the user's voice memo:
+            "{transcription_text}"
+            """
 
-        # Print Gemini's formatted text to standard output
-        # This is what the Java application will read.
-        if gemini_response.candidates:
-            # Access the text from the first part of the first candidate
-            print(gemini_response.candidates[0].content.parts[0].text.strip())
-        else:
-            print("Error: Gemini response had no candidates.", file=sys.stderr)
-            # You might want to print the raw transcription as a fallback if Gemini fails.
-            # print(transcription_text.strip(), file=sys.stderr)
+            gemini_response = model.generate_content(prompt)
 
-    except Exception as e:
-        print(f"Error communicating with Gemini API: {str(e)}", file=sys.stderr)
-        # As a fallback, if Gemini fails, print the raw Whisper transcription
-        print(transcription_text.strip()) # Print raw transcription to stdout as fallback
+            if gemini_response.candidates:
+                print(gemini_response.candidates[0].content.parts[0].text.strip())
+            else:
+                print("Error: Gemini response had no candidates. Falling back to raw transcription.", file=sys.stderr)
+                print(transcription_text.strip()) # Fallback if Gemini fails to provide candidates
 
-# --- Main execution block (unchanged) ---
-if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        audio_file_path = sys.argv[1]
-        if os.path.exists(audio_file_path):
-            try:
-                transcribe_audio(audio_file_path)
-            except Exception as e:
-                print(f"Critical error in transcribe_audio: {str(e)}", file=sys.stderr)
-                # If a critical error occurs even before Gemini, print a generic error to stdout
-                print("Error: Transcription or processing failed.", file=sys.stdout)
-        else:
-            print(f"Error: File not found at {audio_file_path}", file=sys.stderr)
-            print("Error: Audio file not found.", file=sys.stdout)
+        except Exception as e:
+            print(f"Error communicating with Gemini API: {str(e)}. Falling back to raw transcription.", file=sys.stderr)
+            print(transcription_text.strip()) # Fallback to raw transcription
     else:
-        print("Error: No audio file path provided.", file=sys.stderr)
-        print("Error: No audio input.", file=sys.stdout)
+        # If Gemini processing is disabled, just print the raw transcription
+        print(transcription_text.strip())
+
+# --- Main execution block ---
+if __name__ == "__main__":
+    audio_file_path = None
+    enable_gemini = False
+    gemini_api_key = ""
+
+    # Parse command-line arguments
+    for i, arg in enumerate(sys.argv):
+        if i == 1: # First argument is always audio file path
+            audio_file_path = arg
+        elif arg.startswith("--enable-gemini="):
+            enable_gemini = arg.split("=")[1].lower() == "true"
+        elif arg.startswith("--gemini-api-key="):
+            gemini_api_key = arg.split("=")[1]
+
+    if audio_file_path and os.path.exists(audio_file_path):
+        try:
+            transcribe_audio(audio_file_path, enable_gemini, gemini_api_key)
+        except Exception as e:
+            print(f"Critical error in transcribe_audio: {str(e)}", file=sys.stderr)
+            print("Error: Transcription or processing failed.", file=sys.stdout)
+    else:
+        print(f"Error: Audio file not found or path not provided: {audio_file_path}", file=sys.stderr)
+        print("Error: No audio input or file not found.", file=sys.stdout)

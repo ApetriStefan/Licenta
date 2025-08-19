@@ -7,27 +7,31 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 public class PythonBridge {
 
     private final String pythonExecutable = "python";
-    // scriptPath is now just the name, not a full path.
     private final String scriptName = "transcribe.py";
 
-    public CompletableFuture<String> transcribeAudio(String audioFilePath) {
+    // --- MODIFIED: Added enableGemini and geminiApiKey parameters ---
+    public CompletableFuture<String> transcribeAudio(String audioFilePath, boolean enableGemini, String geminiApiKey) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                // Extract the script from resources to a temporary file
                 File tempScript = extractScriptFromResources(scriptName);
                 String scriptPath = tempScript.getAbsolutePath();
 
-                ProcessBuilder processBuilder = new ProcessBuilder(pythonExecutable, scriptPath, audioFilePath);
+                List<String> command = new ArrayList<>();
+                command.add(pythonExecutable);
+                command.add(scriptPath);
+                command.add(audioFilePath);
+                command.add("--enable-gemini=" + enableGemini); // Pass boolean as string
+                command.add("--gemini-api-key=" + geminiApiKey); // Pass API key
 
-                // --- THIS IS THE KEY CHANGE ---
-                // We NO LONGER redirect the error stream. This keeps stdout and stderr separate.
-                // processBuilder.redirectErrorStream(true); // <-- REMOVED
+                ProcessBuilder processBuilder = new ProcessBuilder(command);
 
                 Process process = processBuilder.start();
 
@@ -65,7 +69,6 @@ public class PythonBridge {
     }
 
     private File extractScriptFromResources(String scriptName) throws IOException {
-        // The path within resources should match your source folder structure
         String resourcePath = "/org/stefanapetri/licenta/scripts/" + scriptName;
         try (InputStream in = PythonBridge.class.getResourceAsStream(resourcePath)) {
             if (in == null) {

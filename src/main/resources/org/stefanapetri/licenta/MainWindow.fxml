@@ -5,6 +5,7 @@
 <?import javafx.scene.control.CheckBox?>
 <?import javafx.scene.control.ChoiceBox?>
 <?import javafx.scene.control.Label?>
+<?import javafx.scene.control.PasswordField?>
 <?import javafx.scene.control.SplitPane?>
 <?import javafx.scene.control.Tab?>
 <?import javafx.scene.control.TabPane?>
@@ -20,6 +21,8 @@
 <?import javafx.scene.text.Font?>
 <?import javafx.scene.text.Text?>
 <?import javafx.scene.web.WebView?>
+
+<!-- NEW IMPORT -->
 
 <TabPane prefHeight="750.0" prefWidth="980.0" tabClosingPolicy="UNAVAILABLE" xmlns="http://javafx.com/javafx/24.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.stefanapetri.licenta.controller.MainController">
     <tabs>
@@ -40,13 +43,13 @@
                                 </TableView>
                                 <VBox minWidth="350.0" spacing="10.0" HBox.hgrow="ALWAYS">
                                     <children>
-                                        <Text fill="WHITE" stroke="WHITE" strokeType="OUTSIDE" strokeWidth="0.0" text="Selection Options:" />
+                                        <Text fill="#ededed" strokeType="OUTSIDE" strokeWidth="0.0" text="Selection Options:" />
                                         <Button fx:id="launchAppButton" alignment="CENTER" maxWidth="1.7976931348623157E308" onAction="#handleLaunchApp" styleClass="success-button" text="Launch Application" wrapText="true" />
                                         <Button alignment="CENTER" maxWidth="1.7976931348623157E308" onAction="#handleAddApp" styleClass="success-button" text="Add Application to Tracker" wrapText="true" />
                                         <Button fx:id="updateAppButton" alignment="CENTER" maxWidth="1.7976931348623157E308" onAction="#handleUpdateAppPath" styleClass="info-button" text="Update Application Path" wrapText="true" />
                                         <VBox minHeight="150.0" VBox.vgrow="ALWAYS">
                                             <children>
-                                                <Text fill="WHITE" stroke="WHITE" strokeType="OUTSIDE" strokeWidth="0.0" text="Last Session Reminder:" />
+                                                <Text fill="#ededed" strokeType="OUTSIDE" strokeWidth="0.0" text="Last Session Reminder:" />
                                                 <StackPane VBox.vgrow="ALWAYS">
                                                     <children>
                                                         <WebView fx:id="reminderWebView" minHeight="100.0" />
@@ -63,7 +66,7 @@
                                         </HBox>
                                         <VBox spacing="5.0" VBox.vgrow="ALWAYS">
                                             <children>
-                                                <Text fill="WHITE" stroke="WHITE" strokeType="OUTSIDE" strokeWidth="0.0" text="Historical Reminders:" />
+                                                <Text fill="#ededed" strokeType="OUTSIDE" strokeWidth="0.0" text="Historical Reminders:" />
                                                 <TableView fx:id="historicalMemosTableView" minHeight="150.0" prefHeight="150.0" VBox.vgrow="ALWAYS">
                                                     <columns>
                                                         <TableColumn fx:id="historyDateColumn" prefWidth="120.0" text="Date" />
@@ -153,6 +156,23 @@
                                             </tooltip>
                                         </Label>
                                         <ChoiceBox fx:id="reminderIntervalChoiceBox" prefWidth="150.0" />
+                                    </children>
+                                </VBox>
+                                <!-- Gemini API Settings -->
+                                <VBox spacing="5.0">
+                                    <children>
+                                        <CheckBox fx:id="enableGeminiProcessingCheckBox" mnemonicParsing="false" text="Enable Gemini API Processing" />
+                                        <Label text="Gemini API Key:">
+                                            <tooltip>
+                                                <Tooltip text="Your Google Gemini API Key for advanced memo processing." />
+                                            </tooltip>
+                                        </Label>
+                                        <HBox spacing="5.0"> <!-- NEW: HBox to align password field and save button -->
+                                            <children>
+                                                <PasswordField fx:id="geminiApiKeyPasswordField" promptText="Enter your Gemini API Key" HBox.hgrow="ALWAYS" /> <!-- MODIFIED: Changed to PasswordField -->
+                                                <Button fx:id="saveGeminiApiKeyButton" onAction="#handleSaveGeminiApiKey" styleClass="info-button" text="Save" /> <!-- NEW: Save button -->
+                                            </children>
+                                        </HBox>
                                     </children>
                                 </VBox>
                             </children>

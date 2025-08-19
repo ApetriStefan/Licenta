@@ -1,4 +1,3 @@
-// src\main\java\org\stefanapetri\licenta\controller\MainController.java
 package org.stefanapetri.licenta.controller;
 
 import javafx.application.Platform;
@@ -39,6 +38,11 @@ public class MainController implements Initializable, SystemMonitorListener {
     @FXML private CheckBox startupCheckBox;
     @FXML private CheckBox disableRemindersCheckBox;
     @FXML private ChoiceBox<ReminderInterval> reminderIntervalChoiceBox;
+    // --- Gemini API Settings FXML Fields ---
+    @FXML private CheckBox enableGeminiProcessingCheckBox;
+    @FXML private PasswordField geminiApiKeyPasswordField; // MODIFIED: Changed to PasswordField
+    @FXML private Button saveGeminiApiKeyButton; // NEW
+    // --- END NEW ---
 
     // --- FXML Fields for Main Tab ---
     @FXML private TableView<TrackedApplication> appTableView;
@@ -87,7 +91,7 @@ public class MainController implements Initializable, SystemMonitorListener {
     private boolean isRecording = false;
     private MemoViewItem currentMemo = null;
 
-    // --- NEW: Constant for placeholder message ---
+    // --- Constant for placeholder message ---
     private static final String NO_APP_SELECTED_MESSAGE = "### No Application Selected\n\nSelect an application from the list to view its reminders.";
 
 
@@ -104,7 +108,6 @@ public class MainController implements Initializable, SystemMonitorListener {
     public void initialize(URL url, ResourceBundle resourceBundle) {
         ConsoleManager.redirectSystemStreams(consoleTextArea);
 
-        // --- NEW: Set initial dark mode content for WebView ---
         reminderWebView.getEngine().loadContent(MarkdownConverter.toHtml(NO_APP_SELECTED_MESSAGE));
 
         systemMonitor.setListener(this);
@@ -135,7 +138,6 @@ public class MainController implements Initializable, SystemMonitorListener {
                         updateButtonStates(false);
                         currentMemo = null;
                         reminderTextArea.clear();
-                        // --- MODIFIED: Use consistent placeholder when selection is cleared ---
                         reminderWebView.getEngine().loadContent(MarkdownConverter.toHtml(NO_APP_SELECTED_MESSAGE));
                         historicalMemosList.clear();
                     }
@@ -184,7 +186,54 @@ public class MainController implements Initializable, SystemMonitorListener {
         reminderIntervalChoiceBox.valueProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal != null) settingsManager.setReminderIntervalHours(newVal.getHours());
         });
+
+        // --- Initialize and bind Gemini API settings controls ---
+        enableGeminiProcessingCheckBox.setSelected(settingsManager.isGeminiProcessingEnabled());
+        // Load the key only when the checkbox is enabled, or to show previous state if any
+        if (settingsManager.isGeminiProcessingEnabled()) {
+            geminiApiKeyPasswordField.setText(settingsManager.getGeminiApiKey());
+        } else {
+            geminiApiKeyPasswordField.setText(""); // Clear if not enabled
+        }
+        geminiApiKeyPasswordField.disableProperty().bind(enableGeminiProcessingCheckBox.selectedProperty().not());
+        saveGeminiApiKeyButton.disableProperty().bind(geminiApiKeyPasswordField.textProperty().isEmpty().or(enableGeminiProcessingCheckBox.selectedProperty().not()));
+
+
+        enableGeminiProcessingCheckBox.selectedProperty().addListener((obs, oldVal, newVal) -> {
+            settingsManager.setEnableGeminiProcessing(newVal);
+            // Clear API key in UI and settings if feature is disabled
+            if (!newVal) {
+                geminiApiKeyPasswordField.clear();
+                settingsManager.setGeminiApiKey("");
+            } else {
+                // If re-enabled, load previously saved key if available
+                geminiApiKeyPasswordField.setText(settingsManager.getGeminiApiKey());
+            }
+        });
+        // The API key is now explicitly saved via the button, not on every text change.
+        // The textProperty listener is removed to avoid frequent preference writes.
+        // It's still used by the save button's disableProperty, which is fine.
+        // --- END MODIFIED ---
     }
+
+    // --- NEW: Handle Save Gemini API Key Button Action ---
+    @FXML
+    private void handleSaveGeminiApiKey() {
+        String apiKey = geminiApiKeyPasswordField.getText();
+        if (apiKey != null && !apiKey.trim().isEmpty()) {
+            settingsManager.setGeminiApiKey(apiKey.trim());
+            DialogHelper.createTopMostAlert(
+                    Alert.AlertType.INFORMATION, "API Key Saved",
+                    "Gemini API Key saved successfully.", null
+            );
+        } else {
+            DialogHelper.createTopMostAlert(
+                    Alert.AlertType.WARNING, "Empty API Key",
+                    "Please enter a Gemini API Key before saving.", null
+            );
+        }
+    }
+    // --- END NEW ---
 
     private void loadApplicationsFromDB() {
         trackedAppsList.setAll(dbManager.getAllTrackedApplications());
@@ -268,7 +317,10 @@ public class MainController implements Initializable, SystemMonitorListener {
     private void transcribeAndSave(TrackedApplication app, String audioFilePath) {
         Stage transcribingDialog = DialogHelper.showTranscribingDialog();
 
-        pythonBridge.transcribeAudio(audioFilePath).thenAccept(transcription -> {
+        boolean enableGemini = settingsManager.isGeminiProcessingEnabled();
+        String geminiApiKey = settingsManager.getGeminiApiKey(); // Retrieve saved key
+
+        pythonBridge.transcribeAudio(audioFilePath, enableGemini, geminiApiKey).thenAccept(transcription -> {
             Platform.runLater(() -> {
                 if (transcribingDialog != null) transcribingDialog.close();
             });
@@ -452,8 +504,6 @@ public class MainController implements Initializable, SystemMonitorListener {
                 if (currentApp != null) {
                     loadMemoForApp(currentApp);
                     loadHistoricalMemosForApp(currentApp);
-                } else {
-                    historicalMemosList.clear();
                 }
                 DialogHelper.createTopMostAlert(
                         Alert.AlertType.INFORMATION, "Deleted",
