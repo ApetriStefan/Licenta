@@ -1,26 +1,33 @@
 package org.stefanapetri.licenta.controller;
 
 import javafx.application.Platform;
+import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
+import javafx.scene.web.WebView;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import org.stefanapetri.licenta.model.DatabaseManager;
-import org.stefanapetri.licenta.model.Memo;
+import org.stefanapetri.licenta.model.MemoViewItem;
 import org.stefanapetri.licenta.model.TrackedApplication;
 import org.stefanapetri.licenta.service.*;
 import org.stefanapetri.licenta.view.DialogHelper;
+import org.stefanapetri.licenta.view.MarkdownConverter;
+import org.stefanapetri.licenta.view.StageAndController;
 
-import javax.sound.sampled.LineUnavailableException;
 import java.io.File;
+import java.io.IOException;
 import java.net.URL;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.format.DateTimeFormatter;
+import java.time.format.FormatStyle;
+import java.util.List;
 import java.util.Optional;
 import java.util.ResourceBundle;
 
@@ -39,6 +46,27 @@ public class MainController implements Initializable, SystemMonitorListener {
     @FXML private Button updateAppButton;
     @FXML private Button removeAppButton;
     @FXML private TextArea reminderTextArea;
+    @FXML private WebView reminderWebView;
+    @FXML private Button editOrSaveButton;
+    @FXML private Button cancelEditButton;
+
+    // FXML fields for historical reminders
+    @FXML private TableView<MemoViewItem> historicalMemosTableView;
+    @FXML private TableColumn<MemoViewItem, String> historyDateColumn;
+    @FXML private TableColumn<MemoViewItem, String> historyPreviewColumn;
+    @FXML private Button viewHistoricalMemoButton;
+    @FXML private Button deleteHistoricalMemoButton;
+
+    // --- FXML fields for Search Tab ---
+    @FXML private TextField searchQueryTextField;
+    @FXML private Button searchButton;
+    @FXML private TableView<MemoViewItem> searchResultsTableView;
+    @FXML private TableColumn<MemoViewItem, String> searchAppColumn;
+    @FXML private TableColumn<MemoViewItem, String> searchDateColumn;
+    @FXML private TableColumn<MemoViewItem, String> searchPreviewColumn;
+    @FXML private Button viewSearchMemoButton;
+    @FXML private Button deleteSearchMemoButton;
+
 
     // --- Dependencies ---
     private final DatabaseManager dbManager;
@@ -49,9 +77,12 @@ public class MainController implements Initializable, SystemMonitorListener {
     private final StartupManager startupManager;
 
     // --- State ---
+    private boolean isInEditMode = false;
     private final ObservableList<TrackedApplication> trackedAppsList = FXCollections.observableArrayList();
+    private final ObservableList<MemoViewItem> historicalMemosList = FXCollections.observableArrayList();
+    private final ObservableList<MemoViewItem> searchResultsList = FXCollections.observableArrayList();
     private boolean isRecording = false;
-    private Memo currentMemo = null;
+    private MemoViewItem currentMemo = null;
 
     public MainController(DatabaseManager dbManager, SystemMonitor systemMonitor, PythonBridge pythonBridge) {
         this.dbManager = dbManager;
@@ -64,34 +95,69 @@ public class MainController implements Initializable, SystemMonitorListener {
 
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {
-        // --- Main Tab Setup ---
+        // Main Tab Setup
         systemMonitor.setListener(this);
         appNameColumn.setCellValueFactory(new PropertyValueFactory<>("appName"));
         appPathColumn.setCellValueFactory(new PropertyValueFactory<>("executablePath"));
         appTableView.setItems(trackedAppsList);
+
+        // Setup historical memos table columns
+        historyDateColumn.setCellValueFactory(cellData -> {
+            Timestamp timestamp = cellData.getValue().createdAt();
+            DateTimeFormatter formatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT);
+            return new ReadOnlyStringWrapper(timestamp.toLocalDateTime().format(formatter));
+        });
+        historyPreviewColumn.setCellValueFactory(cellData -> {
+            String fullText = cellData.getValue().transcriptionText();
+            String preview = fullText.length() > 50 ? fullText.substring(0, 50) + "..." : fullText;
+            return new ReadOnlyStringWrapper(preview.replaceAll("\n", " "));
+        });
+        historicalMemosTableView.setItems(historicalMemosList);
+
         appTableView.getSelectionModel().selectedItemProperty().addListener(
                 (obs, oldSelection, newSelection) -> {
+                    toggleEditMode(false);
                     if (newSelection != null) {
                         loadMemoForApp(newSelection);
+                        loadHistoricalMemosForApp(newSelection);
                         updateButtonStates(true);
-                        reminderTextArea.setEditable(true);
                     } else {
                         updateButtonStates(false);
                         currentMemo = null;
                         reminderTextArea.clear();
-                        reminderTextArea.setEditable(false);
+                        reminderWebView.getEngine().loadContent(MarkdownConverter.toHtml(""));
+                        historicalMemosList.clear();
                     }
                 }
         );
+
+        // Setup search results table columns
+        searchAppColumn.setCellValueFactory(cellData -> new ReadOnlyStringWrapper(cellData.getValue().appName()));
+        searchDateColumn.setCellValueFactory(cellData -> {
+            Timestamp timestamp = cellData.getValue().createdAt();
+            DateTimeFormatter formatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT);
+            return new ReadOnlyStringWrapper(timestamp.toLocalDateTime().format(formatter));
+        });
+        searchPreviewColumn.setCellValueFactory(cellData -> {
+            String fullText = cellData.getValue().transcriptionText();
+            String preview = fullText.length() > 100 ? fullText.substring(0, 100) + "..." : fullText;
+            return new ReadOnlyStringWrapper(preview.replaceAll("\n", " "));
+        });
+        searchResultsTableView.setItems(searchResultsList);
+
+        searchResultsTableView.getSelectionModel().selectedItemProperty().addListener(
+                (obs, oldSelection, newSelection) -> {
+                    updateSearchButtonStates(newSelection != null);
+                }
+        );
+        updateSearchButtonStates(false);
+
         loadApplicationsFromDB();
         updateButtonStates(false);
-        reminderTextArea.setEditable(false);
-
-        // --- Settings Tab Setup ---
         setupSettingsTab();
     }
 
-    // --- THIS SECTION CONTAINS THE MISSING HELPER METHODS ---
+    // --- HELPER METHODS ---
 
     private void setupSettingsTab() {
         reminderIntervalChoiceBox.setItems(FXCollections.observableArrayList(ReminderInterval.values()));
@@ -102,21 +168,13 @@ public class MainController implements Initializable, SystemMonitorListener {
 
         startupCheckBox.selectedProperty().addListener((obs, oldVal, newVal) -> {
             settingsManager.setLaunchOnStartup(newVal);
-            if (newVal) {
-                startupManager.enableLaunchOnStartup();
-            } else {
-                startupManager.disableLaunchOnStartup();
-            }
+            if (newVal) startupManager.enableLaunchOnStartup(); else startupManager.disableLaunchOnStartup();
         });
 
-        disableRemindersCheckBox.selectedProperty().addListener((obs, oldVal, newVal) -> {
-            settingsManager.setDisableReminders(newVal);
-        });
+        disableRemindersCheckBox.selectedProperty().addListener((obs, oldVal, newVal) -> settingsManager.setDisableReminders(newVal));
 
         reminderIntervalChoiceBox.valueProperty().addListener((obs, oldVal, newVal) -> {
-            if (newVal != null) {
-                settingsManager.setReminderIntervalHours(newVal.getHours());
-            }
+            if (newVal != null) settingsManager.setReminderIntervalHours(newVal.getHours());
         });
     }
 
@@ -127,52 +185,94 @@ public class MainController implements Initializable, SystemMonitorListener {
     }
 
     private void loadMemoForApp(TrackedApplication app) {
-        Optional<Memo> latestMemo = dbManager.getLatestMemoForApp(app.getAppId());
+        Optional<MemoViewItem> latestMemo = dbManager.getLatestMemoForApp(app.getAppId());
         this.currentMemo = latestMemo.orElse(null);
-        reminderTextArea.setText(latestMemo.map(Memo::transcriptionText)
-                .orElse("No reminder found for this application."));
+        String markdownText = latestMemo.map(MemoViewItem::transcriptionText).orElse("No reminder found for this application.");
+
+        reminderTextArea.setText(markdownText);
+        reminderWebView.getEngine().loadContent(MarkdownConverter.toHtml(markdownText));
+    }
+
+    private void loadHistoricalMemosForApp(TrackedApplication app) {
+        historicalMemosList.setAll(dbManager.getAllMemosForApp(app.getAppId()));
+        updateHistoricalButtonStates(false);
+        historicalMemosTableView.getSelectionModel().selectedItemProperty().addListener(
+                (obs, oldSelection, newSelection) -> {
+                    updateHistoricalButtonStates(newSelection != null);
+                }
+        );
     }
 
     private void updateButtonStates(boolean itemSelected) {
         launchAppButton.setDisable(!itemSelected);
         updateAppButton.setDisable(!itemSelected);
         removeAppButton.setDisable(!itemSelected);
+        editOrSaveButton.setDisable(!itemSelected || currentMemo == null);
+
+        updateHistoricalButtonStates(false);
+    }
+
+    private void updateHistoricalButtonStates(boolean historicalMemoSelected) {
+        viewHistoricalMemoButton.setDisable(!historicalMemoSelected);
+        deleteHistoricalMemoButton.setDisable(!historicalMemoSelected);
+    }
+
+    private void updateSearchButtonStates(boolean searchResultSelected) {
+        viewSearchMemoButton.setDisable(!searchResultSelected);
+        deleteSearchMemoButton.setDisable(!searchResultSelected);
+    }
+
+    private void toggleEditMode(boolean isEditing) {
+        isInEditMode = isEditing;
+        reminderTextArea.setVisible(isEditing);
+        reminderWebView.setVisible(!isEditing);
+        cancelEditButton.setVisible(isEditing);
+
+        if (isEditing) {
+            editOrSaveButton.setText("Save Changes");
+            editOrSaveButton.setStyle("-fx-background-color: #28A745;");
+        } else {
+            editOrSaveButton.setText("Edit Reminder");
+            editOrSaveButton.setStyle("-fx-background-color: #FFC107;");
+            editOrSaveButton.setDisable(appTableView.getSelectionModel().getSelectedItem() == null || currentMemo == null);
+        }
     }
 
     private void startRecordingProcess(TrackedApplication app) {
         isRecording = true;
-        String audioFilePath = "temp_memo.wav";
-        try {
-            audioRecorder.startRecording(audioFilePath);
-            Stage recordingStage = DialogHelper.showRecordingDialog(app);
-            if (recordingStage != null) {
-                recordingStage.setOnHidden(e -> {
-                    audioRecorder.stopRecording();
-                    isRecording = false;
-                    transcribeAndSave(app, audioFilePath);
-                });
-            } else {
+        String userTempDir = System.getProperty("java.io.tmpdir");
+        String audioFilePath = new File(userTempDir, "temp_memo.wav").getAbsolutePath();
+
+        StageAndController<RecordingController> sac = DialogHelper.showRecordingDialog(app, audioRecorder, audioFilePath);
+
+        if (sac != null) {
+            sac.stage.setOnHidden(e -> {
+                audioRecorder.stopRecording();
                 isRecording = false;
-            }
-        } catch (LineUnavailableException e) {
+                transcribeAndSave(app, audioFilePath);
+            });
+        } else {
             isRecording = false;
-            DialogHelper.createTopMostAlert(
-                    Alert.AlertType.ERROR, "Recording Error",
-                    "Microphone not available or not supported.", e.getMessage()
-            );
         }
     }
 
     private void transcribeAndSave(TrackedApplication app, String audioFilePath) {
-        System.out.println("Starting transcription for " + audioFilePath);
+        Stage transcribingDialog = DialogHelper.showTranscribingDialog();
+
         pythonBridge.transcribeAudio(audioFilePath).thenAccept(transcription -> {
-            System.out.println("Transcription received: " + transcription);
+            Platform.runLater(() -> {
+                if (transcribingDialog != null) transcribingDialog.close();
+            });
+
             if (transcription != null && !transcription.startsWith("Error:")) {
                 dbManager.saveMemo(app.getAppId(), transcription, audioFilePath);
                 Platform.runLater(() -> {
                     if (app.equals(appTableView.getSelectionModel().getSelectedItem())) {
                         loadMemoForApp(app);
+                        loadHistoricalMemosForApp(app);
                     }
+                    // MODIFIED: Pass true for enablePlayback for the *newly recorded* memo
+                    DialogHelper.showTranscriptionResultDialog(transcription, audioFilePath, true);
                 });
             } else {
                 Platform.runLater(() -> DialogHelper.createTopMostAlert(
@@ -182,6 +282,13 @@ public class MainController implements Initializable, SystemMonitorListener {
             }
         }).exceptionally(ex -> {
             ex.printStackTrace();
+            Platform.runLater(() -> {
+                if (transcribingDialog != null) transcribingDialog.close();
+                DialogHelper.createTopMostAlert(
+                        Alert.AlertType.ERROR, "Transcription Error",
+                        "An unexpected error occurred during transcription.", ex.getMessage()
+                );
+            });
             return null;
         });
     }
@@ -214,7 +321,7 @@ public class MainController implements Initializable, SystemMonitorListener {
             Optional<ButtonType> result = DialogHelper.createTopMostAlert(
                     Alert.AlertType.CONFIRMATION, "Confirm Deletion",
                     "Remove '" + selectedApp.getAppName() + "'?",
-                    "Are you sure you want to remove this application? All associated reminders will be deleted."
+                    "Are you sure? This will delete all associated reminders."
             );
             if (result.isPresent() && result.get() == ButtonType.OK) {
                 dbManager.removeTrackedApplication(selectedApp.getAppId());
@@ -267,30 +374,154 @@ public class MainController implements Initializable, SystemMonitorListener {
     }
 
     @FXML
-    private void handleUpdateReminder() {
-        TrackedApplication selectedApp = appTableView.getSelectionModel().getSelectedItem();
-        if (selectedApp == null || currentMemo == null) {
-            DialogHelper.createTopMostAlert(
-                    Alert.AlertType.WARNING, "Update Failed",
-                    "Cannot update reminder.", "Please select an application that has a reminder to update."
-            );
-            return;
-        }
-        String updatedText = reminderTextArea.getText();
-        int memoId = currentMemo.memoId();
-        Optional<ButtonType> result = DialogHelper.createTopMostAlert(
-                Alert.AlertType.CONFIRMATION, "Confirm Update",
-                "Update the reminder for '" + selectedApp.getAppName() + "'?",
-                "This will permanently overwrite the existing memo with your changes."
-        );
-        if (result.isPresent() && result.get() == ButtonType.OK) {
+    private void handleEditOrSaveReminder() {
+        if (!isInEditMode) {
+            toggleEditMode(true);
+        } else {
+            TrackedApplication selectedApp = appTableView.getSelectionModel().getSelectedItem();
+            if (selectedApp == null || currentMemo == null) return;
+
+            String updatedText = reminderTextArea.getText();
+            int memoId = currentMemo.memoId();
+
             dbManager.updateMemoText(memoId, updatedText);
+
+            loadMemoForApp(selectedApp);
+            loadHistoricalMemosForApp(selectedApp);
+
+            toggleEditMode(false);
+
             DialogHelper.createTopMostAlert(
                     Alert.AlertType.INFORMATION, "Success",
                     "Reminder updated successfully.", null
             );
         }
     }
+
+    @FXML
+    private void handleCancelEdit() {
+        TrackedApplication selectedApp = appTableView.getSelectionModel().getSelectedItem();
+        if (selectedApp != null) {
+            loadMemoForApp(selectedApp);
+        }
+        toggleEditMode(false);
+    }
+
+    @FXML
+    private void handleViewHistoricalMemo() {
+        MemoViewItem selectedMemo = historicalMemosTableView.getSelectionModel().getSelectedItem();
+        if (selectedMemo != null) {
+            // MODIFIED: Pass false for enablePlayback for historical memos
+            DialogHelper.showTranscriptionResultDialog(selectedMemo.transcriptionText(), selectedMemo.audioFilePath(), false);
+        } else {
+            DialogHelper.createTopMostAlert(
+                    Alert.AlertType.WARNING, "No Memo Selected",
+                    "Please select a historical memo to view.", null
+            );
+        }
+    }
+
+    @FXML
+    private void handleDeleteHistoricalMemo() {
+        MemoViewItem selectedMemo = historicalMemosTableView.getSelectionModel().getSelectedItem();
+        if (selectedMemo != null) {
+            Optional<ButtonType> result = DialogHelper.createTopMostAlert(
+                    Alert.AlertType.CONFIRMATION, "Confirm Deletion",
+                    "Delete selected historical memo?",
+                    "Are you sure you want to delete this memo? This action cannot be undone."
+            );
+            if (result.isPresent() && result.get() == ButtonType.OK) {
+                dbManager.deleteMemo(selectedMemo.memoId());
+                TrackedApplication currentApp = appTableView.getSelectionModel().getSelectedItem();
+                if (currentApp != null) {
+                    loadMemoForApp(currentApp);
+                    loadHistoricalMemosForApp(currentApp);
+                } else {
+                    historicalMemosList.clear();
+                }
+                DialogHelper.createTopMostAlert(
+                        Alert.AlertType.INFORMATION, "Deleted",
+                        "Memo deleted successfully.", null
+                );
+            }
+        } else {
+            DialogHelper.createTopMostAlert(
+                    Alert.AlertType.WARNING, "No Memo Selected",
+                    "Please select a historical memo to delete.", null
+            );
+        }
+    }
+
+    // --- Search Tab Handlers ---
+
+    @FXML
+    private void handleSearch() {
+        String query = searchQueryTextField.getText();
+        if (query == null || query.trim().isEmpty()) {
+            searchResultsList.clear();
+            DialogHelper.createTopMostAlert(
+                    Alert.AlertType.INFORMATION, "Empty Search",
+                    "Please enter a search query.", null
+            );
+            return;
+        }
+        List<MemoViewItem> results = dbManager.searchMemos(query.trim());
+        searchResultsList.setAll(results);
+        updateSearchButtonStates(false);
+
+        if (results.isEmpty()) {
+            DialogHelper.createTopMostAlert(
+                    Alert.AlertType.INFORMATION, "No Results",
+                    "No memos found matching your search query.", null
+            );
+        }
+    }
+
+    @FXML
+    private void handleViewSearchMemo() {
+        MemoViewItem selectedMemo = searchResultsTableView.getSelectionModel().getSelectedItem();
+        if (selectedMemo != null) {
+            // MODIFIED: Pass false for enablePlayback for search results
+            DialogHelper.showTranscriptionResultDialog(selectedMemo.transcriptionText(), selectedMemo.audioFilePath(), false);
+        } else {
+            DialogHelper.createTopMostAlert(
+                    Alert.AlertType.WARNING, "No Memo Selected",
+                    "Please select a memo from the search results to view.", null
+            );
+        }
+    }
+
+    @FXML
+    private void handleDeleteSearchMemo() {
+        MemoViewItem selectedMemo = searchResultsTableView.getSelectionModel().getSelectedItem();
+        if (selectedMemo != null) {
+            Optional<ButtonType> result = DialogHelper.createTopMostAlert(
+                    Alert.AlertType.CONFIRMATION, "Confirm Deletion",
+                    "Delete selected search result memo?",
+                    "Are you sure you want to delete this memo? This action cannot be undone."
+            );
+            if (result.isPresent() && result.get() == ButtonType.OK) {
+                dbManager.deleteMemo(selectedMemo.memoId());
+                handleSearch();
+
+                TrackedApplication currentApp = appTableView.getSelectionModel().getSelectedItem();
+                if (currentApp != null && currentApp.getAppId() == selectedMemo.appId()) {
+                    loadMemoForApp(currentApp);
+                    loadHistoricalMemosForApp(currentApp);
+                }
+                DialogHelper.createTopMostAlert(
+                        Alert.AlertType.INFORMATION, "Deleted",
+                        "Memo deleted successfully.", null
+                );
+            }
+        } else {
+            DialogHelper.createTopMostAlert(
+                    Alert.AlertType.WARNING, "No Memo Selected",
+                    "Please select a memo from the search results to delete.", null
+            );
+        }
+    }
+
 
     // --- SYSTEM MONITOR LISTENER METHODS ---
 
@@ -312,27 +543,17 @@ public class MainController implements Initializable, SystemMonitorListener {
 
     @Override
     public void onMonitoredAppOpened(TrackedApplication app) {
-        if (settingsManager.areRemindersDisabled()) {
-            return;
-        }
+        if (settingsManager.areRemindersDisabled()) return;
         Platform.runLater(() -> {
-            Optional<Memo> memoOpt = dbManager.getLatestMemoForApp(app.getAppId());
+            Optional<MemoViewItem> memoOpt = dbManager.getLatestMemoForApp(app.getAppId());
             Optional<Timestamp> lastClosedOpt = dbManager.getLastClosedTimestamp(app.getAppId());
 
             memoOpt.ifPresent(memo -> {
                 int intervalHours = settingsManager.getReminderIntervalHours();
-                boolean shouldShowPopup = false;
-                if (intervalHours == -1) {
-                    shouldShowPopup = true;
-                } else if (lastClosedOpt.isEmpty()) {
-                    shouldShowPopup = true;
-                } else {
-                    Instant lastClosedInstant = lastClosedOpt.get().toInstant();
-                    long hoursSinceClosed = Duration.between(lastClosedInstant, Instant.now()).toHours();
-                    if (hoursSinceClosed >= intervalHours) {
-                        shouldShowPopup = true;
-                    }
-                }
+                boolean shouldShowPopup = (intervalHours == -1) || lastClosedOpt.map(ts ->
+                        Duration.between(ts.toInstant(), Instant.now()).toHours() >= intervalHours
+                ).orElse(true);
+
                 if (shouldShowPopup) {
                     Optional<ButtonType> response = DialogHelper.createTopMostAlert(
                             Alert.AlertType.CONFIRMATION, "View Reminder",
@@ -348,7 +569,7 @@ public class MainController implements Initializable, SystemMonitorListener {
     }
 }
 
-// Helper Enum for the ChoiceBox
+// Helper Enum for the ChoiceBox (unchanged)
 enum ReminderInterval {
     ALWAYS("Always", -1),
     ONE_HOUR("After 1 Hour", 1),

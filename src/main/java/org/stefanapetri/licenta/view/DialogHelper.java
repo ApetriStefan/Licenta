@@ -11,15 +11,39 @@ import javafx.stage.StageStyle;
 import org.stefanapetri.licenta.MainApplication;
 import org.stefanapetri.licenta.controller.RecordingController;
 import org.stefanapetri.licenta.controller.ReminderViewController;
-import org.stefanapetri.licenta.model.Memo;
+import org.stefanapetri.licenta.controller.TranscribingController;
+import org.stefanapetri.licenta.controller.TranscriptionResultController;
+import org.stefanapetri.licenta.model.MemoViewItem;
 import org.stefanapetri.licenta.model.TrackedApplication;
+import org.stefanapetri.licenta.service.AudioRecorder;
 
+import javax.sound.sampled.LineUnavailableException;
 import java.io.IOException;
 import java.util.Optional;
 
 public class DialogHelper {
 
-    public static void showReminderDialog(Memo memo) {
+    private static void applyDefaultStageSettings(Stage stage) {
+        if (MainApplication.applicationIcon != null) {
+            stage.getIcons().add(MainApplication.applicationIcon);
+        }
+        stage.setAlwaysOnTop(true);
+        stage.toFront();
+        stage.requestFocus();
+    }
+
+    private static void applyDefaultStageSettingsAndShow(Stage stage) {
+        if (MainApplication.applicationIcon != null) {
+            stage.getIcons().add(MainApplication.applicationIcon);
+        }
+        stage.setAlwaysOnTop(true);
+        stage.show();
+        stage.toFront();
+        stage.requestFocus();
+    }
+
+
+    public static void showReminderDialog(MemoViewItem memo) {
         try {
             FXMLLoader loader = new FXMLLoader(MainApplication.class.getResource("Reminder.fxml"));
             Parent root = loader.load();
@@ -32,15 +56,10 @@ public class DialogHelper {
             stage.setTitle("Last Session Reminder");
             stage.setScene(new Scene(root));
 
-            stage.setAlwaysOnTop(true);
-            stage.show();
-            stage.toFront();
-            stage.requestFocus();
+            applyDefaultStageSettingsAndShow(stage);
 
         } catch (IOException e) {
             e.printStackTrace();
-            // --- THIS IS THE CORRECTED LINE ---
-            // We simply call the helper method. We don't need to call .show() on its result.
             createTopMostAlert(
                     Alert.AlertType.ERROR,
                     "UI Error",
@@ -50,7 +69,7 @@ public class DialogHelper {
         }
     }
 
-    public static Stage showRecordingDialog(TrackedApplication app) {
+    public static StageAndController<RecordingController> showRecordingDialog(TrackedApplication app, AudioRecorder recorder, String audioFilePath) {
         try {
             FXMLLoader loader = new FXMLLoader(MainApplication.class.getResource("RecordingView.fxml"));
             Parent root = loader.load();
@@ -58,21 +77,82 @@ public class DialogHelper {
             RecordingController controller = loader.getController();
             controller.setAppName(app.getAppName());
 
+            try {
+                recorder.startRecording(audioFilePath, controller.getAudioDataConsumer());
+            } catch (LineUnavailableException e) {
+                createTopMostAlert(
+                        Alert.AlertType.ERROR, "Recording Error",
+                        "Microphone not available or not supported.", e.getMessage()
+                );
+                return null;
+            }
+
             Stage stage = new Stage();
             stage.initModality(Modality.APPLICATION_MODAL);
             stage.initStyle(StageStyle.UTILITY);
             stage.setTitle("Recording...");
             stage.setScene(new Scene(root));
 
-            stage.setAlwaysOnTop(true);
-            stage.show();
-            stage.toFront();
-            stage.requestFocus();
+            applyDefaultStageSettingsAndShow(stage);
+
+            return new StageAndController<>(stage, controller);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    public static Stage showTranscribingDialog() {
+        try {
+            FXMLLoader loader = new FXMLLoader(MainApplication.class.getResource("TranscribingView.fxml"));
+            Parent root = loader.load();
+
+            Stage stage = new Stage();
+            stage.initModality(Modality.APPLICATION_MODAL);
+            stage.initStyle(StageStyle.UNDECORATED);
+            stage.setTitle("Transcribing...");
+            stage.setScene(new Scene(root));
+
+            applyDefaultStageSettingsAndShow(stage);
 
             return stage;
         } catch (IOException e) {
             e.printStackTrace();
+            createTopMostAlert(
+                    Alert.AlertType.ERROR,
+                    "UI Error",
+                    "Could not load the Transcribing window.",
+                    "Details: " + e.getMessage()
+            );
             return null;
+        }
+    }
+
+    // MODIFIED: Added enablePlayback parameter
+    public static void showTranscriptionResultDialog(String transcription, String audioFilePath, boolean enablePlayback) {
+        try {
+            FXMLLoader loader = new FXMLLoader(MainApplication.class.getResource("TranscriptionResultView.fxml"));
+            Parent root = loader.load();
+
+            TranscriptionResultController controller = loader.getController();
+            controller.setContent(transcription, audioFilePath, enablePlayback); // Pass enablePlayback
+
+            Stage stage = new Stage();
+            stage.initModality(Modality.APPLICATION_MODAL);
+            stage.setTitle("Transcription Result");
+            stage.setScene(new Scene(root));
+
+            applyDefaultStageSettings(stage);
+            stage.showAndWait();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+            createTopMostAlert(
+                    Alert.AlertType.ERROR,
+                    "UI Error",
+                    "Could not load the Transcription Result window.",
+                    "Details: " + e.getMessage()
+            );
         }
     }
 
@@ -83,9 +163,11 @@ public class DialogHelper {
         alert.setContentText(content);
 
         Stage stage = (Stage) alert.getDialogPane().getScene().getWindow();
+        if (MainApplication.applicationIcon != null) {
+            stage.getIcons().add(MainApplication.applicationIcon);
+        }
         stage.setAlwaysOnTop(true);
 
-        // The alert is shown here, and we wait for the user's response.
         return alert.showAndWait();
     }
 }
