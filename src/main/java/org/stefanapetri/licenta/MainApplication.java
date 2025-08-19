@@ -51,7 +51,7 @@ public class MainApplication extends Application {
         Scene scene = new Scene(fxmlLoader.load(), 974, 591);
 
         // --- NEW: Apply the stylesheet to the scene ---
-        String css = this.getClass().getResource("styles.css").toExternalForm();
+        String css = this.getClass().getResource("style.css").toExternalForm();
         scene.getStylesheets().add(css);
 
         primaryStage.setTitle("Application Activity Tracker");
