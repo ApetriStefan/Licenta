@@ -41,7 +41,7 @@ def transcribe_audio(file_path):
         prompt = f"""
         You are an AI assistant designed to help users recall their work sessions. 
         Given a voice memo transcription about what the user was doing in an application, 
-        please process it and provide a concise, structured summary.
+        please process it and provide a concise, structured summary. The summary can be in any language in which the transcription is provided, do not translate it. If there are small parts of the transcription in another language than the majority, use them as-is and provide a translation in (parantheses).
 
         Your task involves the following:
         1.  **Resume/Identify Activities:** Extract the core activities, tasks, decisions, problems encountered, or progress made. Focus on "what was done" and "what needs to be done next".
@@ -50,7 +50,7 @@ def transcribe_audio(file_path):
         4.  **Analysis (Implicit Actions):** Identify any explicit or implied action items or next steps.
         5.  **Formatting:** Present your findings clearly using bullet points. Start with a main summary point if applicable, then detail specific activities/tasks.
 
-        Example Output Format:
+        Example Output Format (-titles can be in any language, as specified before):
         - Brief summary of the session.
         - Completed:
             - [Task 1 completed]
