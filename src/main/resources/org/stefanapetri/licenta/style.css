@@ -44,17 +44,16 @@
 }
 
 .warning-button {
-    -fx-background-color: #FFC107;
-    -fx-text-fill: #212529; /* Dark text for light button */
+    -fx-background-color: #A08000; /* Darker, desaturated yellow/gold */
+    -fx-text-fill: #FFFFFF; /* White text for better contrast on dark background */
 }
 .warning-button:hover {
-    -fx-background-color: #e0a800;
+    -fx-background-color: #806600; /* Even darker for hover effect */
 }
-
-.secondary-button {
+.info-button, .secondary-button {
     -fx-background-color: #6C757D;
 }
-.secondary-button:hover {
+.info-button:hover, .secondary-button:hover {
     -fx-background-color: #5a6268;
 }
 
@@ -140,4 +139,55 @@
 
 .split-pane:vertical > .split-pane-divider {
     -fx-background-color: #555;
+}
+
+/* --- NEW: Dialog Panes (for Alerts, etc.) --- */
+.dialog-pane {
+    -fx-background-color: -fx-base;
+    -fx-border-color: #555;
+    -fx-border-width: 1;
+}
+
+.dialog-pane .label {
+    -fx-text-fill: #BBBBBB;
+}
+
+.dialog-pane .header-panel {
+    -fx-background-color: #45494A;
+}
+
+.dialog-pane .header-panel .label {
+    -fx-font-style: italic;
+    -fx-font-size: 1.2em;
+    -fx-text-fill: #BBBBBB;
+}
+
+/* Ensure dialog pane buttons use the general button style */
+.dialog-pane .button {
+    -fx-pref-width: 70px; /* Give buttons a consistent minimum width */
+}
+
+/* --- NEW: WebView --- */
+/* This is a fallback; primary styling is injected via MarkdownConverter */
+.web-view {
+    -fx-background-color: #45494A;
+}
+
+/* --- NEW: CheckBox --- */
+.check-box {
+    -fx-text-fill: #BBBBBB;
+}
+
+.check-box .box {
+    -fx-background-color: -fx-control-inner-background;
+    -fx-border-color: #777;
+    -fx-border-radius: 3;
+}
+
+.check-box:selected .mark {
+    -fx-background-color: #007BFF;
+}
+
+.check-box:selected .box {
+    -fx-background-color: -fx-control-inner-background;
 }

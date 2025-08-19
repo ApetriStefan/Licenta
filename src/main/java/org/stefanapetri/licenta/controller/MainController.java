@@ -1,3 +1,4 @@
+// src\main\java\org\stefanapetri\licenta\controller\MainController.java
 package org.stefanapetri.licenta.controller;
 
 import javafx.application.Platform;
@@ -11,6 +12,7 @@ import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.web.WebView;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+import org.stefanapetri.licenta.MainApplication;
 import org.stefanapetri.licenta.model.DatabaseManager;
 import org.stefanapetri.licenta.model.MemoViewItem;
 import org.stefanapetri.licenta.model.TrackedApplication;
@@ -85,6 +87,10 @@ public class MainController implements Initializable, SystemMonitorListener {
     private boolean isRecording = false;
     private MemoViewItem currentMemo = null;
 
+    // --- NEW: Constant for placeholder message ---
+    private static final String NO_APP_SELECTED_MESSAGE = "### No Application Selected\n\nSelect an application from the list to view its reminders.";
+
+
     public MainController(DatabaseManager dbManager, SystemMonitor systemMonitor, PythonBridge pythonBridge) {
         this.dbManager = dbManager;
         this.systemMonitor = systemMonitor;
@@ -97,6 +103,9 @@ public class MainController implements Initializable, SystemMonitorListener {
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {
         ConsoleManager.redirectSystemStreams(consoleTextArea);
+
+        // --- NEW: Set initial dark mode content for WebView ---
+        reminderWebView.getEngine().loadContent(MarkdownConverter.toHtml(NO_APP_SELECTED_MESSAGE));
 
         systemMonitor.setListener(this);
         appNameColumn.setCellValueFactory(new PropertyValueFactory<>("appName"));
@@ -126,7 +135,8 @@ public class MainController implements Initializable, SystemMonitorListener {
                         updateButtonStates(false);
                         currentMemo = null;
                         reminderTextArea.clear();
-                        reminderWebView.getEngine().loadContent(MarkdownConverter.toHtml(""));
+                        // --- MODIFIED: Use consistent placeholder when selection is cleared ---
+                        reminderWebView.getEngine().loadContent(MarkdownConverter.toHtml(NO_APP_SELECTED_MESSAGE));
                         historicalMemosList.clear();
                     }
                 }
@@ -185,7 +195,7 @@ public class MainController implements Initializable, SystemMonitorListener {
     private void loadMemoForApp(TrackedApplication app) {
         Optional<MemoViewItem> latestMemo = dbManager.getLatestMemoForApp(app.getAppId());
         this.currentMemo = latestMemo.orElse(null);
-        String markdownText = latestMemo.map(MemoViewItem::transcriptionText).orElse("No reminder found for this application.");
+        String markdownText = latestMemo.map(MemoViewItem::transcriptionText).orElse("### No Reminder Found\n\nNo reminder has been recorded for this application yet.");
 
         reminderTextArea.setText(markdownText);
         reminderWebView.getEngine().loadContent(MarkdownConverter.toHtml(markdownText));
@@ -226,7 +236,6 @@ public class MainController implements Initializable, SystemMonitorListener {
         reminderWebView.setVisible(!isEditing);
         cancelEditButton.setVisible(isEditing);
 
-        // --- MODIFIED: Use style classes instead of inline styles ---
         editOrSaveButton.getStyleClass().removeAll("warning-button", "success-button");
         if (isEditing) {
             editOrSaveButton.setText("Save Changes");
@@ -303,6 +312,14 @@ public class MainController implements Initializable, SystemMonitorListener {
             String path = selectedFile.getAbsolutePath();
             String name = selectedFile.getName().replace(".exe", "");
             TextInputDialog dialog = new TextInputDialog(name);
+
+            // --- Apply dark theme to the dialog ---
+            DialogPane dialogPane = dialog.getDialogPane();
+            String css = MainApplication.class.getResource("style.css").toExternalForm();
+            dialogPane.getStylesheets().add(css);
+            dialogPane.getStyleClass().add("root");
+            // --- END ---
+
             dialog.setTitle("Add Application");
             dialog.setHeaderText("Enter a display name for the application.");
             dialog.setContentText("Name:");

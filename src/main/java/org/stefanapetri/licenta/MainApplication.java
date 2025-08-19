@@ -1,4 +1,3 @@
-// src\main\java\org\stefanapetri\licenta\MainApplication.java
 package org.stefanapetri.licenta;
 
 import javafx.application.Application;
@@ -48,9 +47,10 @@ public class MainApplication extends Application {
         FXMLLoader fxmlLoader = new FXMLLoader(MainApplication.class.getResource("MainWindow.fxml"));
         fxmlLoader.setControllerFactory(param -> mainController);
 
-        Scene scene = new Scene(fxmlLoader.load(), 974, 591);
+        // --- MODIFIED: Increased the Scene size to match the FXML prefHeight/prefWidth ---
+        Scene scene = new Scene(fxmlLoader.load()); // Let the scene take the preferred size from the FXML
 
-        // --- NEW: Apply the stylesheet to the scene ---
+        // Apply the stylesheet to the scene
         String css = this.getClass().getResource("style.css").toExternalForm();
         scene.getStylesheets().add(css);
 
