@@ -1,0 +1,143 @@
+/* General Dark Theme for the Root Pane */
+.root {
+    -fx-base: #3C3F41; /* A dark gray base color */
+    -fx-background: #2B2B2B;
+    -fx-control-inner-background: #45494A;
+    -fx-focus-color: #007BFF;
+    -fx-faint-focus-color: #007BFF22;
+}
+
+/* --- Labels and Text --- */
+.label {
+    -fx-text-fill: #BBBBBB; /* Light gray text for readability */
+}
+
+.text {
+    -fx-fill: #BBBBBB;
+}
+
+/* --- Buttons --- */
+.button {
+    -fx-text-fill: white;
+    -fx-background-color: #007BFF; /* A nice blue for primary actions */
+    -fx-background-radius: 4;
+    -fx-font-weight: bold;
+}
+
+.button:hover {
+    -fx-background-color: #0056b3;
+}
+
+/* Style classes for specific button types */
+.success-button {
+    -fx-background-color: #28A745;
+}
+.success-button:hover {
+    -fx-background-color: #218838;
+}
+
+.danger-button {
+    -fx-background-color: #DC3545;
+}
+.danger-button:hover {
+    -fx-background-color: #c82333;
+}
+
+.warning-button {
+    -fx-background-color: #FFC107;
+    -fx-text-fill: #212529; /* Dark text for light button */
+}
+.warning-button:hover {
+    -fx-background-color: #e0a800;
+}
+
+.secondary-button {
+    -fx-background-color: #6C757D;
+}
+.secondary-button:hover {
+    -fx-background-color: #5a6268;
+}
+
+/* --- TableView --- */
+.table-view {
+    -fx-background-color: -fx-control-inner-background;
+    -fx-border-color: #555;
+    -fx-border-width: 0.5;
+}
+
+.table-view .column-header-background {
+    -fx-background-color: #3C3F41;
+}
+
+.table-view .column-header, .table-view .filler {
+    -fx-background-color: transparent;
+    -fx-size: 35;
+    -fx-border-color: #555;
+    -fx-border-width: 0 0.5 0.5 0;
+}
+
+.table-view .column-header .label {
+    -fx-text-fill: #F1F1F1;
+    -fx-font-weight: bold;
+}
+
+.table-view .table-cell {
+    -fx-border-color: transparent;
+    -fx-text-fill: #DDDDDD;
+}
+
+.table-view .table-row-cell:odd {
+    -fx-background-color: -fx-control-inner-background;
+}
+
+.table-view .table-row-cell:even {
+    -fx-background-color: #4B5152;
+}
+
+.table-view .table-row-cell:selected {
+    -fx-background-color: -fx-focus-color;
+    -fx-text-fill: white;
+}
+
+/* --- Other Controls --- */
+.text-area, .text-field, .choice-box {
+    -fx-background-color: -fx-control-inner-background;
+    -fx-text-fill: #DDDDDD;
+    -fx-prompt-text-fill: #999999;
+}
+
+.choice-box .context-menu {
+    -fx-background-color: -fx-control-inner-background;
+}
+.choice-box .menu-item:focused {
+    -fx-background-color: -fx-focus-color;
+}
+.choice-box .menu-item > .label {
+    -fx-text-fill: #DDDDDD;
+}
+.choice-box .menu-item:focused > .label {
+    -fx-text-fill: white;
+}
+
+
+.tab-pane .tab-header-area .tab-header-background {
+    -fx-background-color: #2B2B2B;
+}
+
+.tab-pane .tab {
+    -fx-background-color: #3C3F41;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+.tab-pane .tab:selected {
+    -fx-background-color: -fx-control-inner-background;
+}
+
+.split-pane:horizontal > .split-pane-divider {
+    -fx-background-color: #555;
+}
+
+.split-pane:vertical > .split-pane-divider {
+    -fx-background-color: #555;
+}
