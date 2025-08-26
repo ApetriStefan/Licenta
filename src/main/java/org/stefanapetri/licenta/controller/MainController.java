@@ -1,4 +1,4 @@
-// src\main\java\org\stefanapetri\licenta\controller\MainController.java
+
 package org.stefanapetri.licenta.controller;
 
 import javafx.application.Platform;
@@ -9,8 +9,8 @@ import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
-import javafx.scene.input.KeyCode; // NEW IMPORT
-import javafx.scene.input.KeyEvent; // NEW IMPORT
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.web.WebView;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
@@ -240,7 +240,6 @@ public class MainController implements Initializable, SystemMonitorListener {
             );
         }
     }
-    // --- END NEW ---
 
     private void loadApplicationsFromDB() {
         trackedAppsList.setAll(dbManager.getAllTrackedApplications());
@@ -612,15 +611,50 @@ public class MainController implements Initializable, SystemMonitorListener {
     @Override
     public void onMonitoredAppOpened(TrackedApplication app) {
         if (settingsManager.areRemindersDisabled()) return;
+
         Platform.runLater(() -> {
             Optional<MemoViewItem> memoOpt = dbManager.getLatestMemoForApp(app.getAppId());
             Optional<Timestamp> lastClosedOpt = dbManager.getLastClosedTimestamp(app.getAppId());
 
             memoOpt.ifPresent(memo -> {
                 int intervalHours = settingsManager.getReminderIntervalHours();
-                boolean shouldShowPopup = (intervalHours == -1) || lastClosedOpt.map(ts ->
-                        Duration.between(ts.toInstant(), Instant.now()).toHours() >= intervalHours
-                ).orElse(true);
+                boolean shouldShowPopup = false;
+
+                if (intervalHours == ReminderInterval.ALWAYS.getHours()) { // -1
+                    shouldShowPopup = true;
+                } else if (intervalHours == ReminderInterval.AUTOMATIC.getHours()) { // -2
+                    if (lastClosedOpt.isPresent()) {
+                        // Ebbinghaus Forgetting Curve Calculation
+                        // Formula: t = -S * ln(R) where R is retention (e.g., 0.25 for 75% forgotten)
+                        // We establish S (strength of memory) by assuming 50% retention after 24 hours.
+                        // S = -t / ln(R) = -24 / ln(0.5) ≈ 34.63
+                        final double memoryStrength = 34.63;
+                        final double targetRetention = 0.25; // Corresponds to 75% forgetting
+                        double requiredHoursForForgetting = -memoryStrength * Math.log(targetRetention); // Approx 47.9 hours
+
+                        long elapsedHours = Duration.between(lastClosedOpt.get().toInstant(), Instant.now()).toHours();
+
+                        if (elapsedHours >= requiredHoursForForgetting) {
+                            shouldShowPopup = true;
+                            System.out.printf(
+                                    "Automatic check for %s: %.1f hours elapsed (>=%.1f hours required). Showing reminder.%n",
+                                    app.getAppName(), (double) elapsedHours, requiredHoursForForgetting
+                            );
+                        } else {
+                            System.out.printf(
+                                    "Automatic check for %s: %.1f hours elapsed (<%.1f hours required). Not showing reminder.%n",
+                                    app.getAppName(), (double) elapsedHours, requiredHoursForForgetting
+                            );
+                        }
+                    } else {
+                        // If the app was never closed before (no timestamp), the interval has effectively passed.
+                        shouldShowPopup = true;
+                    }
+                } else if (intervalHours > 0) { // For fixed intervals like 1h, 6h, etc.
+                    shouldShowPopup = lastClosedOpt.map(ts ->
+                            Duration.between(ts.toInstant(), Instant.now()).toHours() >= intervalHours
+                    ).orElse(true); // Show if never closed before
+                }
 
                 if (shouldShowPopup) {
                     Optional<ButtonType> response = DialogHelper.createTopMostAlert(
@@ -638,6 +672,7 @@ public class MainController implements Initializable, SystemMonitorListener {
 }
 
 enum ReminderInterval {
+    AUTOMATIC("Automatic", -2),
     ALWAYS("Always", -1),
     ONE_HOUR("After 1 Hour", 1),
     SIX_HOURS("After 6 Hours", 6),
