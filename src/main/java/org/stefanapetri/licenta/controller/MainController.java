@@ -1,4 +1,4 @@
-
+// src\main\java\org\stefanapetri\licenta\controller\MainController.java
 package org.stefanapetri.licenta.controller;
 
 import javafx.application.Platform;
@@ -24,16 +24,21 @@ import org.stefanapetri.licenta.view.MarkdownConverter;
 import org.stefanapetri.licenta.view.StageAndController;
 
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.net.URL;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
 import java.util.List;
+import java.util.Map; // NEW IMPORT
 import java.util.Optional;
 import java.util.ResourceBundle;
+import java.lang.management.ManagementFactory;
+import java.lang.management.OperatingSystemMXBean;
 
 public class MainController implements Initializable, SystemMonitorListener {
 
@@ -76,6 +81,16 @@ public class MainController implements Initializable, SystemMonitorListener {
     @FXML private TableColumn<MemoViewItem, String> searchPreviewColumn;
     @FXML private Button viewSearchMemoButton;
     @FXML private Button deleteSearchMemoButton;
+
+    // --- FXML Fields for Developer Tab ---
+    @FXML private TextField devAudioFilePathTextField;
+    @FXML private Button devSelectAudioFileButton;
+    @FXML private ChoiceBox<WhisperModel> devWhisperModelChoiceBox;
+    @FXML private CheckBox devEnableGeminiProcessingCheckBox;
+    @FXML private ChoiceBox<GeminiModel> devGeminiModelChoiceBox;
+    @FXML private Button devGenerateTranscriptButton;
+    @FXML private TextArea devPerformanceMetricsTextArea;
+    // --- END DEVELOPER TAB FXML FIELDS ---
 
 
     // --- Dependencies ---
@@ -178,6 +193,7 @@ public class MainController implements Initializable, SystemMonitorListener {
         loadApplicationsFromDB();
         updateButtonStates(false);
         setupSettingsTab();
+        setupDeveloperTab(); // NEW: Setup the new tab
     }
 
     private void setupSettingsTab() {
@@ -222,6 +238,32 @@ public class MainController implements Initializable, SystemMonitorListener {
             }
         });
     }
+
+    // --- NEW: Developer Tab Setup ---
+    private void setupDeveloperTab() {
+        devWhisperModelChoiceBox.setItems(FXCollections.observableArrayList(WhisperModel.values()));
+        devWhisperModelChoiceBox.setValue(settingsManager.getDeveloperWhisperModel()); // Load default
+
+        devGeminiModelChoiceBox.setItems(FXCollections.observableArrayList(GeminiModel.values()));
+        devGeminiModelChoiceBox.setValue(settingsManager.getDeveloperGeminiModel()); // Load default
+
+        devEnableGeminiProcessingCheckBox.setSelected(settingsManager.isDeveloperGeminiProcessingEnabled());
+
+        // Bind Gemini model choice box disable property
+        devGeminiModelChoiceBox.disableProperty().bind(devEnableGeminiProcessingCheckBox.selectedProperty().not());
+
+        // Save selected values to settings
+        devWhisperModelChoiceBox.valueProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null) settingsManager.setDeveloperWhisperModel(newVal);
+        });
+        devGeminiModelChoiceBox.valueProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null) settingsManager.setDeveloperGeminiModel(newVal);
+        });
+        devEnableGeminiProcessingCheckBox.selectedProperty().addListener((obs, oldVal, newVal) -> {
+            settingsManager.setDeveloperEnableGeminiProcessing(newVal);
+        });
+    }
+    // --- END NEW: Developer Tab Setup ---
 
     // --- Handle Save Gemini API Key Button Action ---
     @FXML
@@ -313,37 +355,36 @@ public class MainController implements Initializable, SystemMonitorListener {
             sac.stage.setOnHidden(e -> {
                 audioRecorder.stopRecording();
                 isRecording = false;
-                transcribeAndSave(app, audioFilePath);
+                // For regular recording, we use default Whisper/Gemini models
+                transcribeAndSave(app, audioFilePath, WhisperModel.SMALL.getModelName(), settingsManager.isGeminiProcessingEnabled(), GeminiModel.GEMINI_2_5_FLASH.getModelName(), settingsManager.getGeminiApiKey());
             });
         } else {
             isRecording = false;
         }
     }
 
-    private void transcribeAndSave(TrackedApplication app, String audioFilePath) {
+    // MODIFIED: Added parameters for Whisper and Gemini models, and Gemini API key
+    private void transcribeAndSave(TrackedApplication app, String audioFilePath, String whisperModel, boolean enableGemini, String geminiModel, String geminiApiKey) {
         Stage transcribingDialog = DialogHelper.showTranscribingDialog();
 
-        boolean enableGemini = settingsManager.isGeminiProcessingEnabled();
-        String geminiApiKey = settingsManager.getGeminiApiKey();
-
-        pythonBridge.transcribeAudio(audioFilePath, enableGemini, geminiApiKey).thenAccept(transcription -> {
+        pythonBridge.transcribeAudio(audioFilePath, whisperModel, enableGemini, geminiModel, geminiApiKey).thenAccept(result -> {
             Platform.runLater(() -> {
                 if (transcribingDialog != null) transcribingDialog.close();
             });
 
-            if (transcription != null && !transcription.startsWith("Error:")) {
-                dbManager.saveMemo(app.getAppId(), transcription, audioFilePath);
+            if (result.transcription() != null && !result.transcription().startsWith("Error:")) {
+                dbManager.saveMemo(app.getAppId(), result.transcription(), audioFilePath);
                 Platform.runLater(() -> {
                     if (app.equals(appTableView.getSelectionModel().getSelectedItem())) {
                         loadMemoForApp(app);
                         loadHistoricalMemosForApp(app);
                     }
-                    DialogHelper.showTranscriptionResultDialog(transcription, audioFilePath, true);
+                    DialogHelper.showTranscriptionResultDialog(result.transcription(), audioFilePath, true);
                 });
             } else {
                 Platform.runLater(() -> DialogHelper.createTopMostAlert(
                         Alert.AlertType.ERROR, "Transcription Failed",
-                        "The transcription process failed.", transcription
+                        "The transcription process failed.", result.transcription()
                 ));
             }
         }).exceptionally(ex -> {
@@ -591,6 +632,170 @@ public class MainController implements Initializable, SystemMonitorListener {
         }
     }
 
+    // --- NEW: Developer Tab Handlers ---
+    @FXML
+    private void handleDevSelectAudioFile() {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Select Audio File for Transcription");
+        fileChooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Audio Files", "*.wav", "*.mp3", "*.flac"),
+                new FileChooser.ExtensionFilter("All Files", "*.*")
+        );
+        File selectedFile = fileChooser.showOpenDialog(devSelectAudioFileButton.getScene().getWindow());
+        if (selectedFile != null) {
+            devAudioFilePathTextField.setText(selectedFile.getAbsolutePath());
+        }
+    }
+
+    @FXML
+    private void handleDevGenerateTranscript() {
+        String audioFilePath = devAudioFilePathTextField.getText();
+        if (audioFilePath == null || audioFilePath.trim().isEmpty() || !new File(audioFilePath).exists()) {
+            DialogHelper.createTopMostAlert(
+                    Alert.AlertType.WARNING, "Missing Audio File",
+                    "Please select an audio file before generating a transcript.", null
+            );
+            return;
+        }
+
+        WhisperModel selectedWhisperModel = devWhisperModelChoiceBox.getValue();
+        boolean enableGemini = devEnableGeminiProcessingCheckBox.isSelected();
+        GeminiModel selectedGeminiModel = devGeminiModelChoiceBox.getValue();
+        String geminiApiKey = settingsManager.getGeminiApiKey(); // Use the same API key as settings
+
+        if (enableGemini && (geminiApiKey == null || geminiApiKey.trim().isEmpty())) {
+            DialogHelper.createTopMostAlert(
+                    Alert.AlertType.WARNING, "Gemini API Key Missing",
+                    "Gemini processing is enabled, but no API key is set in the Settings tab.", null
+            );
+            return;
+        }
+
+        // Clear previous results
+        devPerformanceMetricsTextArea.clear();
+        devPerformanceMetricsTextArea.appendText("Starting transcription...\n");
+        devPerformanceMetricsTextArea.appendText("Using Whisper Model: " + selectedWhisperModel.getModelName() + "\n");
+        devPerformanceMetricsTextArea.appendText("Gemini Processing: " + (enableGemini ? "Enabled with " + selectedGeminiModel.getModelName() : "Disabled") + "\n");
+        devPerformanceMetricsTextArea.appendText("Audio File: " + audioFilePath + "\n");
+        devPerformanceMetricsTextArea.appendText("----------------------------------\n");
+
+
+        // UI feedback while processing
+        devGenerateTranscriptButton.setDisable(true);
+        devSelectAudioFileButton.setDisable(true);
+        devWhisperModelChoiceBox.setDisable(true);
+        devEnableGeminiProcessingCheckBox.setDisable(true);
+        // devGeminiModelChoiceBox.setDisable(true); // This is bound, so don't set manually
+
+        // Get initial system CPU load (JVM-level, for general system context)
+        OperatingSystemMXBean osBean = ManagementFactory.getOperatingSystemMXBean();
+        double initialSystemLoadAverage = osBean.getSystemLoadAverage();
+        String systemLoadAvgInitialReport;
+        if (initialSystemLoadAverage >= 0) {
+            systemLoadAvgInitialReport = String.format("%.2f (1 min avg)", initialSystemLoadAverage);
+        } else {
+            systemLoadAvgInitialReport = "N/A (not available on this system)";
+        }
+        devPerformanceMetricsTextArea.appendText("Initial System Load Average: " + systemLoadAvgInitialReport + "\n");
+
+
+        pythonBridge.transcribeAudio(
+                audioFilePath,
+                selectedWhisperModel.getModelName(),
+                enableGemini,
+                selectedGeminiModel.getModelName(),
+                geminiApiKey
+        ).thenAccept(result -> {
+            Platform.runLater(() -> {
+                // Get final system CPU load
+                double finalSystemLoadAverage = osBean.getSystemLoadAverage();
+                String systemLoadAvgFinalReport;
+                if (finalSystemLoadAverage >= 0) {
+                    systemLoadAvgFinalReport = String.format("%.2f (1 min avg)", finalSystemLoadAverage);
+                } else {
+                    systemLoadAvgFinalReport = "N/A (not available on this system)";
+                }
+
+                devPerformanceMetricsTextArea.appendText("\n--- Transcription Results (from Python) ---\n");
+                if (result.transcription() != null && !result.transcription().startsWith("Error:")) {
+                    devPerformanceMetricsTextArea.appendText("Transcription successful!\n");
+                    devPerformanceMetricsTextArea.appendText("Transcription: " + result.transcription() + "\n");
+                } else {
+                    devPerformanceMetricsTextArea.appendText("Transcription failed: " + result.transcription() + "\n");
+                }
+                devPerformanceMetricsTextArea.appendText("\n--- Performance Metrics (from Python) ---\n");
+
+                Map<String, Object> metrics = result.metrics();
+                if (!metrics.isEmpty()) {
+                    metrics.forEach((key, value) -> devPerformanceMetricsTextArea.appendText(String.format("%s: %s%n", key.replace("_", " "), value)));
+                } else {
+                    devPerformanceMetricsTextArea.appendText("No detailed Python-side metrics received.\n");
+                }
+
+                devPerformanceMetricsTextArea.appendText("\n--- System Metrics (from Java) ---\n");
+                devPerformanceMetricsTextArea.appendText("Final System Load Average: " + systemLoadAvgFinalReport + "\n");
+
+
+                // Save metrics to file
+                String fileName = String.format("whisper-%s_gemini-%s.txt",
+                        selectedWhisperModel.getModelName(),
+                        enableGemini ? selectedGeminiModel.getModelName() : "disabled");
+                File metricsDir = new File("metrics");
+                if (!metricsDir.exists()) metricsDir.mkdirs();
+                File outputFile = new File(metricsDir, fileName);
+
+                try (FileWriter writer = new FileWriter(outputFile, true)) { // Append to file
+                    writer.write("--- Performance Test Run ---\n");
+                    writer.write(String.format("Timestamp: %s%n", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))));
+                    writer.write(String.format("Audio File: %s%n", audioFilePath));
+                    writer.write(String.format("Whisper Model: %s%n", selectedWhisperModel.getModelName()));
+                    writer.write(String.format("Gemini Enabled: %b%n", enableGemini));
+                    writer.write(String.format("Gemini Model: %s%n", enableGemini ? selectedGeminiModel.getModelName() : "N/A"));
+                    writer.write("\n--- Python-side Metrics ---\n");
+                    if (!metrics.isEmpty()) {
+                        metrics.forEach((key, value) -> {
+                            try {
+                                writer.write(String.format("%s: %s%n", key.replace("_", " "), value));
+                            } catch (IOException e) {
+                                System.err.println("Error writing metric to file: " + e.getMessage());
+                            }
+                        });
+                    } else {
+                        writer.write("No detailed Python-side metrics received.\n");
+                    }
+                    writer.write("\n--- Java-side System Metrics ---\n");
+                    writer.write("Initial System Load Average: " + systemLoadAvgInitialReport + "\n");
+                    writer.write("Final System Load Average: " + systemLoadAvgFinalReport + "\n");
+                    writer.write("Transcription Output:\n" + result.transcription() + "\n");
+                    writer.write("----------------------------\n\n");
+                    System.out.println("Performance metrics saved to " + outputFile.getAbsolutePath());
+                } catch (IOException e) {
+                    System.err.println("Error writing performance metrics to file: " + e.getMessage());
+                }
+
+
+                // Re-enable UI elements
+                devGenerateTranscriptButton.setDisable(false);
+                devSelectAudioFileButton.setDisable(false);
+                devWhisperModelChoiceBox.setDisable(false);
+                devEnableGeminiProcessingCheckBox.setDisable(false);
+                // devGeminiModelChoiceBox.setDisable(false); // This is bound, so don't set manually
+            });
+        }).exceptionally(ex -> {
+            Platform.runLater(() -> {
+                devPerformanceMetricsTextArea.appendText("\nError during transcription process: " + ex.getMessage() + "\n");
+                ex.printStackTrace();
+                // Re-enable UI elements on error
+                devGenerateTranscriptButton.setDisable(false);
+                devSelectAudioFileButton.setDisable(false);
+                devWhisperModelChoiceBox.setDisable(false);
+                devEnableGeminiProcessingCheckBox.setDisable(false);
+                // devGeminiModelChoiceBox.setDisable(false); // This is bound, so don't set manually
+            });
+            return null;
+        });
+    }
+    // --- END NEW: Developer Tab Handlers ---
 
     @Override
     public void onMonitoredAppClosed(TrackedApplication app) {
@@ -671,6 +876,7 @@ public class MainController implements Initializable, SystemMonitorListener {
     }
 }
 
+// NOTE: ReminderInterval enum remains in MainController.java as it's directly used there
 enum ReminderInterval {
     AUTOMATIC("Automatic", -2),
     ALWAYS("Always", -1),

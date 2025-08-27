@@ -1,3 +1,4 @@
+// src\main\main\java\org\stefanapetri\licenta\service\PythonBridge.java
 package org.stefanapetri.licenta.service;
 
 import java.io.BufferedReader;
@@ -11,14 +12,20 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
+import com.fasterxml.jackson.databind.ObjectMapper; // NEW IMPORT
+import com.fasterxml.jackson.core.type.TypeReference; // NEW IMPORT
+import java.util.Map; // NEW IMPORT
 
 public class PythonBridge {
 
     private final String pythonExecutable = "python";
     private final String scriptName = "transcribe.py";
+    private static final String METRICS_DELIMITER = "---METRICS_JSON_START---"; // Unique delimiter
 
-    // --- MODIFIED: Added enableGemini and geminiApiKey parameters ---
-    public CompletableFuture<String> transcribeAudio(String audioFilePath, boolean enableGemini, String geminiApiKey) {
+    // NEW: Record to hold transcription and metrics
+    public record TranscriptionResult(String transcription, Map<String, Object> metrics) {}
+
+    public CompletableFuture<TranscriptionResult> transcribeAudio(String audioFilePath, String whisperModel, boolean enableGemini, String geminiModel, String geminiApiKey) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 File tempScript = extractScriptFromResources(scriptName);
@@ -28,18 +35,23 @@ public class PythonBridge {
                 command.add(pythonExecutable);
                 command.add(scriptPath);
                 command.add(audioFilePath);
-                command.add("--enable-gemini=" + enableGemini); // Pass boolean as string
-                command.add("--gemini-api-key=" + geminiApiKey); // Pass API key
+                command.add("--whisper-model=" + whisperModel);
+                command.add("--enable-gemini=" + enableGemini);
+                command.add("--gemini-model=" + geminiModel);
+                command.add("--gemini-api-key=" + geminiApiKey);
 
                 ProcessBuilder processBuilder = new ProcessBuilder(command);
 
                 Process process = processBuilder.start();
 
-                // Read the standard output (this is our clean transcription)
-                String output;
+                StringBuilder outputBuilder = new StringBuilder();
+                String line;
                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                    output = reader.lines().collect(Collectors.joining(System.lineSeparator()));
+                    while ((line = reader.readLine()) != null) {
+                        outputBuilder.append(line).append(System.lineSeparator());
+                    }
                 }
+                String rawOutput = outputBuilder.toString();
 
                 // Read the standard error (for logging and debugging)
                 String errorOutput;
@@ -50,20 +62,36 @@ public class PythonBridge {
                 int exitCode = process.waitFor();
                 tempScript.delete(); // Clean up the temporary file
 
-                // If there was anything in the error stream, print it to the Java console for debugging.
                 if (errorOutput != null && !errorOutput.isEmpty()) {
                     System.err.println("Python Script stderr:\n" + errorOutput);
                 }
 
                 if (exitCode == 0) {
-                    return output;
+                    // Parse transcription and metrics
+                    int delimiterIndex = rawOutput.indexOf(METRICS_DELIMITER);
+                    String transcription = rawOutput;
+                    Map<String, Object> metrics = Map.of(); // Default empty map
+
+                    if (delimiterIndex != -1) {
+                        transcription = rawOutput.substring(0, delimiterIndex).trim();
+                        String jsonMetrics = rawOutput.substring(delimiterIndex + METRICS_DELIMITER.length()).trim();
+                        ObjectMapper mapper = new ObjectMapper();
+                        try {
+                            metrics = mapper.readValue(jsonMetrics, new TypeReference<Map<String, Object>>() {});
+                        } catch (IOException e) {
+                            System.err.println("Error parsing Python metrics JSON: " + e.getMessage());
+                        }
+                    }
+
+                    return new TranscriptionResult(transcription, metrics);
+
                 } else {
-                    return "Error: Transcription failed. Script exited with code " + exitCode + ".";
+                    return new TranscriptionResult("Error: Transcription failed. Script exited with code " + exitCode + ".\nRaw output:\n" + rawOutput, Map.of("error", "Python script failed"));
                 }
 
             } catch (Exception e) {
                 e.printStackTrace();
-                return "Error: Could not execute Python script.";
+                return new TranscriptionResult("Error: Could not execute Python script. Details: " + e.getMessage(), Map.of("error", e.getMessage()));
             }
         });
     }

@@ -1,3 +1,4 @@
+// src/main/java/org/stefanapetri/licenta/service/StartupManager.java
 package org.stefanapetri.licenta.service;
 
 import com.sun.jna.platform.win32.Advapi32Util;
@@ -29,7 +30,8 @@ public class StartupManager {
             Advapi32Util.registryDeleteValue(WinReg.HKEY_CURRENT_USER, REGISTRY_KEY_PATH, APP_NAME);
             System.out.println("Disabled launch on startup.");
         } catch (Exception e) {
-            System.err.println("Could not disable launch on startup (this is normal if it wasn't enabled): " + e.getMessage());
+            // This error is common and expected if the key doesn't exist, so we don't need to be loud about it.
+            System.out.println("Could not disable launch on startup (this is normal if it wasn't enabled).");
         }
     }
 }

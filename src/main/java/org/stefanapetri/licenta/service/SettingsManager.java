@@ -1,8 +1,11 @@
+// src\main\java\org\stefanapetri\licenta\service\SettingsManager.java
 package org.stefanapetri.licenta.service;
 
 import org.stefanapetri.licenta.MainApplication;
+import org.stefanapetri.licenta.controller.GeminiModel;
+import org.stefanapetri.licenta.controller.WhisperModel;
 import java.util.prefs.Preferences;
-import java.util.Arrays; // NEW IMPORT
+import java.util.Arrays;
 
 public class SettingsManager {
 
@@ -14,6 +17,11 @@ public class SettingsManager {
     // --- Gemini API Settings Keys ---
     private static final String ENABLE_GEMINI_PROCESSING = "enableGeminiProcessing";
     private static final String GEMINI_API_KEY = "geminiApiKey";
+    // --- Developer Tab Settings Keys ---
+    private static final String DEVELOPER_WHISPER_MODEL = "developerWhisperModel";
+    private static final String DEVELOPER_ENABLE_GEMINI_PROCESSING = "developerEnableGeminiProcessing";
+    private static final String DEVELOPER_GEMINI_MODEL = "developerGeminiModel";
+
 
     public SettingsManager() {
         // Creates a unique preference node for this application
@@ -80,4 +88,32 @@ public class SettingsManager {
             System.err.println("Error saving preferences: " + e.getMessage());
         }
     }
+
+    // --- NEW: Developer Tab Settings ---
+    public WhisperModel getDeveloperWhisperModel() {
+        String modelName = prefs.get(DEVELOPER_WHISPER_MODEL, WhisperModel.SMALL.getModelName());
+        return WhisperModel.fromName(modelName).orElse(WhisperModel.SMALL);
+    }
+
+    public void setDeveloperWhisperModel(WhisperModel model) {
+        prefs.put(DEVELOPER_WHISPER_MODEL, model.getModelName());
+    }
+
+    public boolean isDeveloperGeminiProcessingEnabled() {
+        return prefs.getBoolean(DEVELOPER_ENABLE_GEMINI_PROCESSING, false); // Default to false
+    }
+
+    public void setDeveloperEnableGeminiProcessing(boolean value) {
+        prefs.putBoolean(DEVELOPER_ENABLE_GEMINI_PROCESSING, value);
+    }
+
+    public GeminiModel getDeveloperGeminiModel() {
+        String modelName = prefs.get(DEVELOPER_GEMINI_MODEL, GeminiModel.GEMINI_2_5_FLASH.getModelName());
+        return GeminiModel.fromName(modelName).orElse(GeminiModel.GEMINI_2_5_FLASH);
+    }
+
+    public void setDeveloperGeminiModel(GeminiModel model) {
+        prefs.put(DEVELOPER_GEMINI_MODEL, model.getModelName());
+    }
+    // --- END NEW: Developer Tab Settings ---
 }

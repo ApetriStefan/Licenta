@@ -1,3 +1,4 @@
+// build.gradle.kts
 plugins {
     java
     application
@@ -46,6 +47,9 @@ dependencies {
 
     // PostgreSQL JDBC Driver
     implementation("org.postgresql:postgresql:42.7.3")
+
+    // NEW: Jackson Databind for JSON parsing (THIS IS THE CRUCIAL LINE)
+    implementation("com.fasterxml.jackson.core:jackson-databind:2.17.2") // Use a recent version
 
     // Keep your existing JavaFX dependencies
     implementation("org.controlsfx:controlsfx:11.2.1")
