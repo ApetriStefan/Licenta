@@ -7,8 +7,12 @@ import numpy as np
 import jiwer # For Word Error Rate calculation
 
 # --- Configuration ---
-METRICS_DIR = "." # Looks in the current directory
-OUTPUT_PLOTS_DIR = "performance_plots"
+# Get the directory where the script itself is located.
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+METRICS_DIR = SCRIPT_DIR # Look for .txt files in the same directory as the script.
+# Create the output directory in the same location.
+OUTPUT_PLOTS_DIR = os.path.join(SCRIPT_DIR, "performance_plots")
+
 
 # !!! IMPORTANT !!!
 # THIS IS THE CORRECTED GROUND TRUTH.
@@ -38,14 +42,14 @@ def parse_metrics_file(filepath):
     if not metrics_section_match:
         print(f"  [ERROR] Could not find '--- Python-side Metrics ---' section in {os.path.basename(filepath)}")
         return None
-    
+
     metrics_section = metrics_section_match.group(1)
     for line in metrics_section.strip().split('\n'):
         if ':' in line:
             key, value = line.split(':', 1)
             clean_key = key.strip().lower().replace(' ', '_')
             value_str = value.strip()
-            
+
             try:
                 data[clean_key] = float(value_str)
             except ValueError:
@@ -61,7 +65,7 @@ def parse_metrics_file(filepath):
     if not header_section_match:
         print(f"  [ERROR] Could not find header section in {os.path.basename(filepath)}")
         return None
-    
+
     header_section = header_section_match.group(1)
     for line in header_section.strip().split('\n'):
         if line.startswith("Whisper Model:"):
@@ -76,19 +80,20 @@ def parse_metrics_file(filepath):
         jiwer.RemovePunctuation(),
         jiwer.Strip()
     ])
-    
+
     clean_ground_truth = transformation(GROUND_TRUTH_TRANSCRIPT)
     clean_hypothesis = transformation(transcription_text)
-    
+
     error = jiwer.wer(clean_ground_truth, clean_hypothesis)
     data['word_error_rate'] = error
-    
+
     return data
 
 # --- Load all metrics ---
 def load_all_metrics(metrics_dir):
     all_data = []
     for filename in os.listdir(metrics_dir):
+        # Make sure we don't try to parse the script itself
         if filename.endswith(".txt"):
             filepath = os.path.join(metrics_dir, filename)
             data = parse_metrics_file(filepath)
@@ -112,18 +117,18 @@ def plot_metrics(df):
     df['gemini_model'] = pd.Categorical(df['gemini_model'], categories=gemini_order, ordered=True)
 
     df_sorted = df.sort_values(by=['whisper_model', 'gemini_model'])
-    
+
     # --- Plot 1: Word Error Rate (Accuracy) vs. Whisper Model ---
     plt.figure(figsize=(12, 7))
     # Accuracy is based on the raw Whisper output, so we only need one data point per whisper model
     # We'll specifically use the 'gemini-disabled' runs for a fair comparison
     accuracy_data = df_sorted[df_sorted['gemini_model'] == 'disabled'].groupby('whisper_model')['word_error_rate'].mean().reset_index()
-    
+
     bars = plt.bar(accuracy_data['whisper_model'], accuracy_data['word_error_rate'], color='skyblue')
     plt.ylabel('Word Error Rate (WER)')
     plt.title('Transcription Accuracy vs. Whisper Model (Lower is Better)')
     plt.grid(axis='y', linestyle='--', alpha=0.7)
-    
+
     # Add WER values on top of the bars
     for bar in bars:
         yval = bar.get_height()
@@ -141,7 +146,7 @@ def plot_metrics(df):
     plt.figure(figsize=(14, 8))
     ind = np.arange(len(grouped_data))
     bar_width = 0.8
-    
+
     p1 = plt.bar(ind, grouped_data['whisper_load_time_ms'], bar_width, label='Whisper Load Time')
     p2 = plt.bar(ind, grouped_data['whisper_transcription_time_ms'], bar_width, label='Whisper Transcription Time', bottom=grouped_data['whisper_load_time_ms'])
     p3 = plt.bar(ind, grouped_data['gemini_processing_time_ms'], bar_width, label='Gemini Processing Time', bottom=grouped_data['whisper_load_time_ms'] + grouped_data['whisper_transcription_time_ms'])
@@ -165,7 +170,7 @@ def plot_metrics(df):
         subset = grouped_data[grouped_data['gemini_model'] == gemini_m]
         plot_values = [subset[subset['whisper_model'] == wm]['peak_memory_mb'].iloc[0] if wm in subset['whisper_model'].values else 0 for wm in whisper_order]
         plt.bar(index + i * bar_width, plot_values, bar_width, label=f'Gemini: {gemini_m}')
-    
+
     plt.ylabel('Peak Memory (MB)')
     plt.title('Peak Memory Usage by Model Combination')
     plt.xticks(index + bar_width, whisper_order)
@@ -178,12 +183,12 @@ def plot_metrics(df):
     # --- Plot 4: Total CPU Time (Grouped Bar Chart) ---
     plt.figure(figsize=(14, 8))
     grouped_data['total_cpu_time_s'] = grouped_data['cpu_user_time_s'] + grouped_data['cpu_system_time_s']
-    
+
     for i, gemini_m in enumerate(gemini_order):
         subset = grouped_data[grouped_data['gemini_model'] == gemini_m]
         plot_values = [subset[subset['whisper_model'] == wm]['total_cpu_time_s'].iloc[0] if wm in subset['whisper_model'].values else 0 for wm in whisper_order]
         plt.bar(index + i * bar_width, plot_values, bar_width, label=f'Gemini: {gemini_m}')
-    
+
     plt.ylabel('Total CPU Time (seconds)')
     plt.title('Total CPU Time by Model Combination')
     plt.xticks(index + bar_width, whisper_order)

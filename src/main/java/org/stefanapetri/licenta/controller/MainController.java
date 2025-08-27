@@ -1,4 +1,3 @@
-// src\main\java\org\stefanapetri\licenta\controller\MainController.java
 package org.stefanapetri.licenta.controller;
 
 import javafx.application.Platform;
@@ -23,9 +22,11 @@ import org.stefanapetri.licenta.view.DialogHelper;
 import org.stefanapetri.licenta.view.MarkdownConverter;
 import org.stefanapetri.licenta.view.StageAndController;
 
+import java.io.BufferedReader; // NEW IMPORT
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStreamReader; // NEW IMPORT
 import java.net.URL;
 import java.sql.Timestamp;
 import java.time.Duration;
@@ -34,11 +35,12 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
 import java.util.List;
-import java.util.Map; // NEW IMPORT
+import java.util.Map;
 import java.util.Optional;
 import java.util.ResourceBundle;
 import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
+import java.util.stream.Collectors; // NEW IMPORT
 
 public class MainController implements Initializable, SystemMonitorListener {
 
@@ -90,6 +92,7 @@ public class MainController implements Initializable, SystemMonitorListener {
     @FXML private ChoiceBox<GeminiModel> devGeminiModelChoiceBox;
     @FXML private Button devGenerateTranscriptButton;
     @FXML private TextArea devPerformanceMetricsTextArea;
+    @FXML private Button devAnalyzeMetricsButton; // NEW FXML FIELD
     // --- END DEVELOPER TAB FXML FIELDS ---
 
 
@@ -632,7 +635,7 @@ public class MainController implements Initializable, SystemMonitorListener {
         }
     }
 
-    // --- NEW: Developer Tab Handlers ---
+    // --- Developer Tab Handlers ---
     @FXML
     private void handleDevSelectAudioFile() {
         FileChooser fileChooser = new FileChooser();
@@ -682,20 +685,15 @@ public class MainController implements Initializable, SystemMonitorListener {
 
         // UI feedback while processing
         devGenerateTranscriptButton.setDisable(true);
+        devAnalyzeMetricsButton.setDisable(true);
         devSelectAudioFileButton.setDisable(true);
         devWhisperModelChoiceBox.setDisable(true);
         devEnableGeminiProcessingCheckBox.setDisable(true);
-        // devGeminiModelChoiceBox.setDisable(true); // This is bound, so don't set manually
 
-        // Get initial system CPU load (JVM-level, for general system context)
+        // Get initial system CPU load
         OperatingSystemMXBean osBean = ManagementFactory.getOperatingSystemMXBean();
         double initialSystemLoadAverage = osBean.getSystemLoadAverage();
-        String systemLoadAvgInitialReport;
-        if (initialSystemLoadAverage >= 0) {
-            systemLoadAvgInitialReport = String.format("%.2f (1 min avg)", initialSystemLoadAverage);
-        } else {
-            systemLoadAvgInitialReport = "N/A (not available on this system)";
-        }
+        String systemLoadAvgInitialReport = (initialSystemLoadAverage >= 0) ? String.format("%.2f (1 min avg)", initialSystemLoadAverage) : "N/A (not available on this system)";
         devPerformanceMetricsTextArea.appendText("Initial System Load Average: " + systemLoadAvgInitialReport + "\n");
 
 
@@ -707,24 +705,13 @@ public class MainController implements Initializable, SystemMonitorListener {
                 geminiApiKey
         ).thenAccept(result -> {
             Platform.runLater(() -> {
-                // Get final system CPU load
                 double finalSystemLoadAverage = osBean.getSystemLoadAverage();
-                String systemLoadAvgFinalReport;
-                if (finalSystemLoadAverage >= 0) {
-                    systemLoadAvgFinalReport = String.format("%.2f (1 min avg)", finalSystemLoadAverage);
-                } else {
-                    systemLoadAvgFinalReport = "N/A (not available on this system)";
-                }
+                String systemLoadAvgFinalReport = (finalSystemLoadAverage >= 0) ? String.format("%.2f (1 min avg)", finalSystemLoadAverage) : "N/A (not available on this system)";
 
                 devPerformanceMetricsTextArea.appendText("\n--- Transcription Results (from Python) ---\n");
-                if (result.transcription() != null && !result.transcription().startsWith("Error:")) {
-                    devPerformanceMetricsTextArea.appendText("Transcription successful!\n");
-                    devPerformanceMetricsTextArea.appendText("Transcription: " + result.transcription() + "\n");
-                } else {
-                    devPerformanceMetricsTextArea.appendText("Transcription failed: " + result.transcription() + "\n");
-                }
-                devPerformanceMetricsTextArea.appendText("\n--- Performance Metrics (from Python) ---\n");
+                devPerformanceMetricsTextArea.appendText("Transcription: " + result.transcription() + "\n");
 
+                devPerformanceMetricsTextArea.appendText("\n--- Performance Metrics (from Python) ---\n");
                 Map<String, Object> metrics = result.metrics();
                 if (!metrics.isEmpty()) {
                     metrics.forEach((key, value) -> devPerformanceMetricsTextArea.appendText(String.format("%s: %s%n", key.replace("_", " "), value)));
@@ -744,7 +731,7 @@ public class MainController implements Initializable, SystemMonitorListener {
                 if (!metricsDir.exists()) metricsDir.mkdirs();
                 File outputFile = new File(metricsDir, fileName);
 
-                try (FileWriter writer = new FileWriter(outputFile, true)) { // Append to file
+                try (FileWriter writer = new FileWriter(outputFile, true)) {
                     writer.write("--- Performance Test Run ---\n");
                     writer.write(String.format("Timestamp: %s%n", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))));
                     writer.write(String.format("Audio File: %s%n", audioFilePath));
@@ -776,10 +763,10 @@ public class MainController implements Initializable, SystemMonitorListener {
 
                 // Re-enable UI elements
                 devGenerateTranscriptButton.setDisable(false);
+                devAnalyzeMetricsButton.setDisable(false);
                 devSelectAudioFileButton.setDisable(false);
                 devWhisperModelChoiceBox.setDisable(false);
                 devEnableGeminiProcessingCheckBox.setDisable(false);
-                // devGeminiModelChoiceBox.setDisable(false); // This is bound, so don't set manually
             });
         }).exceptionally(ex -> {
             Platform.runLater(() -> {
@@ -787,16 +774,95 @@ public class MainController implements Initializable, SystemMonitorListener {
                 ex.printStackTrace();
                 // Re-enable UI elements on error
                 devGenerateTranscriptButton.setDisable(false);
+                devAnalyzeMetricsButton.setDisable(false);
                 devSelectAudioFileButton.setDisable(false);
                 devWhisperModelChoiceBox.setDisable(false);
                 devEnableGeminiProcessingCheckBox.setDisable(false);
-                // devGeminiModelChoiceBox.setDisable(false); // This is bound, so don't set manually
             });
             return null;
         });
     }
-    // --- END NEW: Developer Tab Handlers ---
 
+    // NEW METHOD: Handler for the Analyze Metrics button
+    @FXML
+    private void handleDevAnalyzeMetrics() {
+        devAnalyzeMetricsButton.setDisable(true);
+        devAnalyzeMetricsButton.setText("Analyzing...");
+
+        // Run the script in a background thread to avoid freezing the UI
+        new Thread(() -> {
+            try {
+                String pythonExecutable = "python";
+                String scriptPath = "metrics/metrics_analyzer.py";
+
+                // Ensure the script exists before trying to run it
+                File scriptFile = new File(scriptPath);
+                if (!scriptFile.exists()) {
+                    Platform.runLater(() -> {
+                        DialogHelper.createTopMostAlert(
+                                Alert.AlertType.ERROR,
+                                "Script Not Found",
+                                "The analysis script was not found.",
+                                "Please ensure 'metrics_analyzer.py' is inside the 'metrics' directory, which is in the same folder as your application JAR."
+                        );
+                        devAnalyzeMetricsButton.setText("Analyze Metrics & Generate Graphs");
+                        devAnalyzeMetricsButton.setDisable(false);
+                    });
+                    return;
+                }
+
+                ProcessBuilder pb = new ProcessBuilder(pythonExecutable, scriptFile.getName());
+                // Set the working directory for the script to the 'metrics' folder
+                pb.directory(scriptFile.getParentFile());
+                pb.redirectErrorStream(true);
+
+                Process process = pb.start();
+
+                // Capture the script's output
+                String output = new BufferedReader(new InputStreamReader(process.getInputStream()))
+                        .lines().collect(Collectors.joining("\n"));
+
+                int exitCode = process.waitFor();
+
+                Platform.runLater(() -> {
+                    if (exitCode == 0) {
+                        DialogHelper.createTopMostAlert(
+                                Alert.AlertType.INFORMATION,
+                                "Analysis Complete",
+                                "The performance metrics have been analyzed successfully.",
+                                "Graphs have been saved to the 'performance_plots' directory."
+                        );
+                    } else {
+                        DialogHelper.createTopMostAlert(
+                                Alert.AlertType.ERROR,
+                                "Analysis Failed",
+                                "The analysis script failed to execute. See console for details.",
+                                "Python script output:\n" + output
+                        );
+                        System.err.println("Python script failed with exit code " + exitCode + ". Output:\n" + output);
+                    }
+                    devAnalyzeMetricsButton.setText("Analyze Metrics & Generate Graphs");
+                    devAnalyzeMetricsButton.setDisable(false);
+                });
+
+            } catch (IOException | InterruptedException e) {
+                Platform.runLater(() -> {
+                    DialogHelper.createTopMostAlert(
+                            Alert.AlertType.ERROR,
+                            "Execution Error",
+                            "Could not run the Python analysis script.",
+                            "Error: " + e.getMessage()
+                    );
+                    devAnalyzeMetricsButton.setText("Analyze Metrics & Generate Graphs");
+                    devAnalyzeMetricsButton.setDisable(false);
+                });
+                e.printStackTrace();
+            }
+        }).start();
+    }
+
+
+    // --- SystemMonitorListener Methods ---
     @Override
     public void onMonitoredAppClosed(TrackedApplication app) {
         dbManager.updateLastClosedTimestamp(app.getAppId());
@@ -830,35 +896,22 @@ public class MainController implements Initializable, SystemMonitorListener {
                 } else if (intervalHours == ReminderInterval.AUTOMATIC.getHours()) { // -2
                     if (lastClosedOpt.isPresent()) {
                         // Ebbinghaus Forgetting Curve Calculation
-                        // Formula: t = -S * ln(R) where R is retention (e.g., 0.25 for 75% forgotten)
-                        // We establish S (strength of memory) by assuming 50% retention after 24 hours.
-                        // S = -t / ln(R) = -24 / ln(0.5) ≈ 34.63
                         final double memoryStrength = 34.63;
-                        final double targetRetention = 0.25; // Corresponds to 75% forgetting
-                        double requiredHoursForForgetting = -memoryStrength * Math.log(targetRetention); // Approx 47.9 hours
+                        final double targetRetention = 0.25;
+                        double requiredHoursForForgetting = -memoryStrength * Math.log(targetRetention);
 
                         long elapsedHours = Duration.between(lastClosedOpt.get().toInstant(), Instant.now()).toHours();
 
                         if (elapsedHours >= requiredHoursForForgetting) {
                             shouldShowPopup = true;
-                            System.out.printf(
-                                    "Automatic check for %s: %.1f hours elapsed (>=%.1f hours required). Showing reminder.%n",
-                                    app.getAppName(), (double) elapsedHours, requiredHoursForForgetting
-                            );
-                        } else {
-                            System.out.printf(
-                                    "Automatic check for %s: %.1f hours elapsed (<%.1f hours required). Not showing reminder.%n",
-                                    app.getAppName(), (double) elapsedHours, requiredHoursForForgetting
-                            );
                         }
                     } else {
-                        // If the app was never closed before (no timestamp), the interval has effectively passed.
                         shouldShowPopup = true;
                     }
-                } else if (intervalHours > 0) { // For fixed intervals like 1h, 6h, etc.
+                } else if (intervalHours > 0) {
                     shouldShowPopup = lastClosedOpt.map(ts ->
                             Duration.between(ts.toInstant(), Instant.now()).toHours() >= intervalHours
-                    ).orElse(true); // Show if never closed before
+                    ).orElse(true);
                 }
 
                 if (shouldShowPopup) {
