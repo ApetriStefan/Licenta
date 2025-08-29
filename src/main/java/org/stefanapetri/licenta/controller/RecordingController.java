@@ -31,7 +31,6 @@ public class RecordingController {
         titleLabel.setText("Recording Memo for " + name);
     }
 
-    // --- NEW METHOD: Provides the Consumer for audio data ---
     public Consumer<byte[]> getAudioDataConsumer() {
         return this::drawWaveform;
     }

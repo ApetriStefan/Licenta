@@ -8,8 +8,7 @@ public class TrackedApplication {
     private final SimpleIntegerProperty appId;
     private final SimpleStringProperty appName;
     private final SimpleStringProperty executablePath;
-    // You can add other properties like lastOpened if needed for the table.
-    // For now, we'll keep it simple.
+
 
     public TrackedApplication(int appId, String appName, String executablePath) {
         this.appId = new SimpleIntegerProperty(appId);

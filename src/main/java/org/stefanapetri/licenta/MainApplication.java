@@ -47,7 +47,6 @@ public class MainApplication extends Application {
         FXMLLoader fxmlLoader = new FXMLLoader(MainApplication.class.getResource("MainWindow.fxml"));
         fxmlLoader.setControllerFactory(param -> mainController);
 
-        // --- MODIFIED: Increased the Scene size to match the FXML prefHeight/prefWidth ---
         Scene scene = new Scene(fxmlLoader.load()); // Let the scene take the preferred size from the FXML
 
         // Apply the stylesheet to the scene

@@ -22,7 +22,7 @@ public class PythonBridge {
     private final String scriptName = "transcribe.py";
     private static final String METRICS_DELIMITER = "---METRICS_JSON_START---"; // Unique delimiter
 
-    // NEW: Record to hold transcription and metrics
+
     public record TranscriptionResult(String transcription, Map<String, Object> metrics) {}
 
     public CompletableFuture<TranscriptionResult> transcribeAudio(String audioFilePath, String whisperModel, boolean enableGemini, String geminiModel, String geminiApiKey) {

@@ -33,7 +33,6 @@ public class DatabaseManager {
 
             System.out.println("Database properties loaded successfully.");
 
-            // NEW: Ensure the database and tables exist
             initializeDatabase();
 
         } catch (Exception e) {

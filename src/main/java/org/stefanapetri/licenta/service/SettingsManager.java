@@ -56,7 +56,7 @@ public class SettingsManager {
         prefs.putInt(REMINDER_INTERVAL_HOURS, hours);
     }
 
-    // --- MODIFIED: Gemini API Settings to handle sensitive data ---
+
     public boolean isGeminiProcessingEnabled() {
         return prefs.getBoolean(ENABLE_GEMINI_PROCESSING, false); // Default to false
     }
@@ -70,8 +70,6 @@ public class SettingsManager {
      * @return The API key as a String, or an empty string if not set.
      */
     public String getGeminiApiKey() {
-        // While Preferences stores as String, this method is called to retrieve for use.
-        // For truly high-security apps, one would encrypt/decrypt here.
         return prefs.get(GEMINI_API_KEY, "");
     }
 
@@ -81,7 +79,6 @@ public class SettingsManager {
      */
     public void setGeminiApiKey(String key) {
         prefs.put(GEMINI_API_KEY, key);
-        // It's good practice to flush preferences to ensure they're written to persistent storage
         try {
             prefs.flush();
         } catch (java.util.prefs.BackingStoreException e) {
@@ -89,7 +86,6 @@ public class SettingsManager {
         }
     }
 
-    // --- NEW: Developer Tab Settings ---
     public WhisperModel getDeveloperWhisperModel() {
         String modelName = prefs.get(DEVELOPER_WHISPER_MODEL, WhisperModel.SMALL.getModelName());
         return WhisperModel.fromName(modelName).orElse(WhisperModel.SMALL);
@@ -115,5 +111,4 @@ public class SettingsManager {
     public void setDeveloperGeminiModel(GeminiModel model) {
         prefs.put(DEVELOPER_GEMINI_MODEL, model.getModelName());
     }
-    // --- END NEW: Developer Tab Settings ---
 }

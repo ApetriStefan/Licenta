@@ -185,13 +185,11 @@ public class MainController implements Initializable, SystemMonitorListener {
         );
         updateSearchButtonStates(false);
 
-        // --- NEW: Add Enter key listener to search query text field ---
         searchQueryTextField.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.ENTER) {
                 handleSearch();
             }
         });
-        // --- END NEW ---
 
         loadApplicationsFromDB();
         updateButtonStates(false);
@@ -242,7 +240,6 @@ public class MainController implements Initializable, SystemMonitorListener {
         });
     }
 
-    // --- NEW: Developer Tab Setup ---
     private void setupDeveloperTab() {
         devWhisperModelChoiceBox.setItems(FXCollections.observableArrayList(WhisperModel.values()));
         devWhisperModelChoiceBox.setValue(settingsManager.getDeveloperWhisperModel()); // Load default
@@ -266,7 +263,6 @@ public class MainController implements Initializable, SystemMonitorListener {
             settingsManager.setDeveloperEnableGeminiProcessing(newVal);
         });
     }
-    // --- END NEW: Developer Tab Setup ---
 
     // --- Handle Save Gemini API Key Button Action ---
     @FXML
@@ -366,7 +362,6 @@ public class MainController implements Initializable, SystemMonitorListener {
         }
     }
 
-    // MODIFIED: Added parameters for Whisper and Gemini models, and Gemini API key
     private void transcribeAndSave(TrackedApplication app, String audioFilePath, String whisperModel, boolean enableGemini, String geminiModel, String geminiApiKey) {
         Stage transcribingDialog = DialogHelper.showTranscribingDialog();
 
@@ -783,7 +778,6 @@ public class MainController implements Initializable, SystemMonitorListener {
         });
     }
 
-    // NEW METHOD: Handler for the Analyze Metrics button
     @FXML
     private void handleDevAnalyzeMetrics() {
         devAnalyzeMetricsButton.setDisable(true);
@@ -929,7 +923,6 @@ public class MainController implements Initializable, SystemMonitorListener {
     }
 }
 
-// NOTE: ReminderInterval enum remains in MainController.java as it's directly used there
 enum ReminderInterval {
     AUTOMATIC("Automatic", -2),
     ALWAYS("Always", -1),

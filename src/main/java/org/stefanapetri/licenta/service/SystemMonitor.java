@@ -67,9 +67,6 @@ public class SystemMonitor implements Runnable {
                             TrackedApplication currentApp = trackedAppMap.get(currentPath);
                             runningTrackedProcesses.putIfAbsent(currentPid, currentApp);
 
-                            // --- MODIFIED "OPEN" LOGIC ---
-                            // Only fire the event if the focused app is different from the one we last remembered.
-                            // This prevents our own pop-ups from causing the event to fire repeatedly.
                             if (!currentPath.equals(lastOpenedAppPath)) {
                                 if (listener != null) {
                                     Platform.runLater(() -> listener.onMonitoredAppOpened(currentApp));
@@ -77,7 +74,6 @@ public class SystemMonitor implements Runnable {
                                 lastOpenedAppPath = currentPath; // Remember this path
                             }
                         }
-                        // We NO LONGER reset lastOpenedAppPath here.
                     }
                 }
 
@@ -86,9 +82,6 @@ public class SystemMonitor implements Runnable {
                     if (!isProcessRunning(pid)) {
                         TrackedApplication closedApp = runningTrackedProcesses.remove(pid);
                         if (closedApp != null) {
-                            // --- NEW "CLOSE" LOGIC ---
-                            // If the app that just closed is the one we were remembering, we can now forget it.
-                            // This allows the "open" pop-up to appear again if the user re-launches it.
                             if (closedApp.getExecutablePath().equalsIgnoreCase(lastOpenedAppPath)) {
                                 lastOpenedAppPath = "";
                             }
@@ -110,7 +103,6 @@ public class SystemMonitor implements Runnable {
         }
     }
 
-    // (getProcessPath and isProcessRunning methods are unchanged)
     private String getProcessPath(int processId) {
         Memory buffer = new Memory(2048);
         WinNT.HANDLE processHandle = Kernel32.INSTANCE.OpenProcess(

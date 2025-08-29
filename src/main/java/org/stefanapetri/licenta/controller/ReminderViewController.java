@@ -17,7 +17,6 @@ public class ReminderViewController {
     @FXML private WebView reminderWebView;
     @FXML private Button okButton;
 
-    // MODIFIED: Accepts MemoViewItem
     public void setMemo(MemoViewItem memo) {
         DateTimeFormatter formatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM);
         dateText.setText(memo.createdAt().toLocalDateTime().format(formatter));

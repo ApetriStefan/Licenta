@@ -20,7 +20,6 @@ public class TranscriptionResultController {
     private String audioFilePath;
     private MediaPlayer mediaPlayer;
 
-    // MODIFIED: Added enablePlayback parameter
     public void setContent(String transcription, String audioFilePath, boolean enablePlayback) {
         transcriptionWebView.getEngine().loadContent(MarkdownConverter.toHtml(transcription));
         this.audioFilePath = audioFilePath;
